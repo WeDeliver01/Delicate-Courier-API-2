@@ -1,147 +1,180 @@
 # Deliverable 7: Delicate Engine Gap Analysis
 
-This is the deliverable that should change the project plan.
+> **Revised 2026-10-01.** The first version of this document was written before the Engine
+> repository was available and concluded that the Engine did not exist and would have to be built
+> greenfield. **That was wrong.** `WeDeliver01/Delicate-Engine` @ `c84998b` is a substantial,
+> well-architected build. This revision replaces that analysis entirely. The conclusion changes
+> direction: the capability gap is much smaller than feared, and the integration gap is much larger.
 
-## The finding
+## What the Engine actually is
 
-**The Delicate Engine does not exist in this repository.** A sweep for any engine,
-provider-abstraction, driver, capacity, availability, rate-card, surcharge or
-holiday-calendar type returns nothing. There is no partial implementation, no
-scaffold, and no interface waiting for one.
+A TypeScript monorepo, pnpm workspaces + Turborepo:
 
-The handover's Phase 2 is written as *"before replacing ShipLogic calls, confirm
-that the Engine has equivalent capabilities"*, which presumes something to confirm
-against. Within this codebase there is nothing. If an Engine exists in another
-repository or as part of another venture, **that repository needs to be attached
-before Phase 2 can be scoped**, because this analysis cannot assess what it cannot
-read. Everything below assumes a greenfield Engine; revise if that assumption is
-wrong.
+| Part | Contents |
+|---|---|
+| `apps/api` | NestJS engine. 107 TS files, **17 bounded-context modules**, HTTP API + outbox worker |
+| `apps/web` | Next.js 15, route groups `(marketing)` `(portal)` `(admin)` |
+| `apps/driver` | Expo / React Native driver app |
+| `packages/db` | Drizzle schema (17 files), **16 SQL migrations**, seed |
+| `packages/contracts` | Zod DTOs, domain events, enums — shared by every app |
+| `docs/` | Signed-off `ARCHITECTURE.md`, 3 ADRs, runbook, handover material |
 
-## The second finding, which is larger
+Modules: `address-book`, `admin`, `analytics`, `billing`, `bookings`, `catalog`, `dispatch`,
+`fleet`, `health`, `identity`, `ledger`, `loyalty`, `notifications`, `payments`, `scheduling`,
+`treasury`, `wallet`.
 
-The business rules the handover asks the migration to *preserve* mostly **do not
-exist to be preserved**.
+Architecture signed off by Ashley 2026-09-19. The decision recorded there is explicit:
+**"Own drivers only. No ShipLogic. We own waybills, tracking, POD, billing."**
 
-The handover (sections 29 to 31) lists standard rates, client-specific pricing,
-membership pricing, weekend surcharges, public holiday surcharges, capacity
-restrictions, same-day booking rules, service levels, liability, and payment
-rules. Here is what the code actually contains:
+### Phase status, with a caveat
 
-| Business rule | Where it lives today | Status |
+`README.md` reports phases 0, 1 and 2 complete and phase 3 as next.
+`docs/ARCHITECTURE.md` marks phases 3, 4 and 5 with checkmarks.
+
+The two disagree. The `treasury`, `billing` and `payments` modules all have real schema, services
+and tests, which suggests the README table is stale rather than the architecture doc being
+optimistic. **Confirm with Ashley before planning against either.** Recorded here because an
+estimate built on the wrong one would be wrong by months.
+
+## Capability gap: much smaller than the handover assumed
+
+Re-running the handover's capability list against the Engine's actual code:
+
+| Capability the API needs | Engine status | Evidence |
 |---|---|---|
-| Base delivery rate | ShipLogic `/v2/rates` | **External.** Nothing to port — must be built |
-| Client-specific pricing | ShipLogic account rate card | **External.** Must be built |
-| Membership tier pricing | Not in this codebase | **Does not exist in code** |
-| Merchant markup | WooCommerce plugin, client side | Exists, but merchant-side. Stays where it is |
-| Special-trip (per-km) rate | `SpecialTripQuoter` x `Store.SpecialTripCostPerKm` | **The only Delicate-owned pricing that exists** |
-| Service level | `Store.DefaultServiceLevel` (`"STD"`), filtered in C# | Exists as a label; the pricing behind it is ShipLogic's |
-| Checkout rate label | `Store.CheckoutRateLabel` | Exists |
-| Weekend surcharge | nowhere | **Does not exist** |
-| Public holiday surcharge | nowhere | **Does not exist** |
-| Capacity / availability | nowhere | **Does not exist** |
-| Same-day booking rules | nowhere | **Does not exist** |
-| Collection/delivery windows | `Store.CollectionTimeFrom/To`, `DeliveryTimeFrom/To` | Exist as per-store strings, not enforced as capacity |
-| Liability / protection | not implemented | **Does not exist** |
-| Payments / transactions | not implemented | **Does not exist** |
-| Driver allocation | nowhere | **ShipLogic's operation entirely** |
+| **Rate engine** | **Exists** | `catalog/quote.service.ts`, `packages/contracts/src/pricing.ts`. Rate cards, per-account overrides (`account_rate_cards`), service levels with multipliers, package types, options, fuel surcharge in bps, minimum fee, VAT. Pure deterministic function; quotes persist with the rule snapshot |
+| **Booking** | **Exists** | `bookings/booking.service.ts`. One transaction: lock quote, reserve slot, place wallet hold, insert booking + shipments + events |
+| **Capacity / availability** | **Exists** | `scheduling`. `slot_policies`, `delivery_slots` with capacity and `booked_count`, cut-offs, `blackout_dates`, row-locked in the booking transaction |
+| **Waybill + tracking** | **Exists** | `DC-YYMMDD-XXXXX`, immutable `shipment_events`, public tracking by waybill |
+| **Labels** | **Exists** | Printable waybill label. Format fit for the plugin still to be confirmed |
+| **Driver allocation + dispatch** | **Exists** | `dispatch`, `fleet`. Drivers, vehicles, shifts, auto-assign on confirmation with proximity/load scoring, dispatcher override |
+| **POD** | **Exists** | Photo, signature, name, geo, time. Expo driver app |
+| **Settlement + ledger** | **Exists** | `ledger`, double-entry, balanced journals, integer cents, settles on **actual** km |
+| **Payments / wallet** | **Exists** | `wallet`, `payments`. Wallets, append-only entries, holds, top-ups credited only on verified webhook, credit terms for postpaid |
+| **Treasury** | **Exists** | Allocation engine, obligations, proposals with human approval |
+| **Cancellation** | **Exists** | `POST /v1/account/bookings/:id/cancel` |
+| **Idempotency** | **Exists** | Keys on wallet entries, holds, loyalty, bookings. Quote single-use under row lock |
+| **Notifications** | **Exists** | Templates, channels, worker delivery with retries |
+| **Weekend / public holiday surcharge** | **Does not exist** | Implemented surcharges are fuel, service level, parcel type and options. No date-conditional surcharge |
+| **Any concept of this API, or of an e-commerce merchant** | **Does not exist** | A grep for woocommerce / shopify / shiplogic / merchant across `apps` and `packages` returns only payment-provider merchant IDs |
 
-So the Engine is not replacing a rate engine. **It is building the first one.** The
-project is therefore better understood as:
+So of the handover's capability list, essentially everything exists except date-conditional
+surcharges. **The Engine is not the bottleneck.**
 
-> *Build Delicate's courier platform, then route the existing API at it.*
+## The real gap: the integration seam
 
-rather than
+The Engine was designed for customers booking directly through a portal. This API serves
+e-commerce merchants whose customers book implicitly at checkout. Those are different shapes, and
+the eight gaps below are where they fail to meet. Full detail, with the reasoning, is in the root
+`CLAUDE.md`; summarised here with sizing.
 
-> *Swap a provider behind an existing abstraction.*
-
-The abstraction swap is the easy half and it is largely already done, because
-`IShiplogicService` exists and is clean. The hard half is the platform behind it,
-and the handover's phase numbering understates it.
-
-## Gap table
-
-Format as the handover specifies: capability, current ShipLogic implementation,
-required Engine capability, current Engine status, work required, priority.
-
-### Required for the API migration (the six frozen endpoints)
-
-| Capability | ShipLogic today | Engine must provide | Engine status | Work | Priority |
-|---|---|---|---|---|---|
-| **Rate calculation** | `POST /v2/rates`, account rate card, returns all service levels | Rate engine: zones or distance, per-client rate cards, service levels, surcharges, weekend/holiday, minimums | **Does not exist** | **Large. Critical path.** Needs a commercial decision on the rating model before any code | **Critical** |
-| **Shipment creation** | `POST /shipments` | Booking endpoint accepting the mapped payload, returning shipment id, tracking reference, status, rate, estimated delivery, collection branch | **Does not exist** | Medium | **Critical** |
-| **Idempotent lookup** | `GET /shipments?customer_reference=` | Lookup by customer reference, exact-match semantics | **Does not exist** | Small, but **must replicate the strict false-positive guard** | **Critical** |
-| **Label generation** | `GET /shipments/{id}/label` returns a ShipLogic-produced PDF | **Generate** a scannable courier label: barcode, tracking ref, addresses, parcel details, printable | **Does not exist** | **Medium-large, and not in the handover's capability list** | **Critical** (one of the six frozen endpoints) |
-| **Status / tracking** | `GET /v2/tracking/shipments` + inbound webhook | Shipment status, event history, status vocabulary that is a **superset of ShipLogic's current strings** | **Does not exist** | Medium | **Critical** |
-| **Cancellation** | `POST /v2/shipments/cancel` | Cancel by reference | **Does not exist** | Small | High |
-| **Account context** | Per-tenant bearer token | Internal service auth; client credentials stay at the API edge | **Does not exist** | Small. Simpler than today | High |
-| **Address handling** | ShipLogic geocoded (badly) | Validation + coordinates. Delicate already geocodes and caches | **Partially exists** (`CachedGeocoder`, `GeocodeCache`) | Small — reuse | Medium |
-
-### Required for operations, but not for the API cutover
-
-These are needed to actually run deliveries once the Engine owns bookings. They can
-trail the API work but cannot trail the *cutover*, because a booking the Engine
-accepts must be deliverable.
-
-| Capability | Engine status | Work | Priority |
+| # | Gap | Size | Blocks |
 |---|---|---|---|
-| Driver allocation and dispatch | Does not exist | **Large** | Critical before any real cutover |
-| Collection / delivery status capture by drivers | Does not exist | Large | Critical before cutover |
-| Capacity and availability model | Does not exist | Medium-large | High (handover section 31) |
-| Weekend / holiday calendar as pricing + availability conditions | Does not exist | Medium (handover section 30) | High |
-| Payments and transactions | Does not exist | Large | Deferred — not required for the API migration |
-| Reporting | Partially exists (`ReportsController`, 6 endpoints over local data) | Small — repoint | Low |
+| 1 | **No machine-to-machine auth.** `@RequireAccount()` needs a Supabase JWT + `X-Account-Id`. This API has no user principal | Small-medium | **Everything.** Build first |
+| 2 | **Quote-then-book vs single-step create.** Engine books a `quoteId`; `CreateShipmentAsync` is one call | Medium | Booking path |
+| 3 | **Quotes are single-use and expire; Hangfire retries for ~24h.** `quote_used` / `quote_expired` will fire on almost every retry | Small, high-risk | Correctness. Mishandled = duplicates or silent non-booking |
+| 4 | **Pricing models are structurally different** (see below) | **Commercial decision, not code** | Phase 2 feasibility |
+| 5 | **Wallet gating has no equivalent** in the merchant flow (see below) | **Commercial project** | Any real client migration |
+| 6 | **No identity mapping.** `Tenant`→`Store` vs `organizations`→`accounts`→`memberships` | Small-medium | Routing |
+| 7 | **Status vocabulary differs**, and ShipLogic's strings already leak to merchants via `_dcp_*` meta | Small, easy to miss | Merchant-visible behaviour |
+| 8 | **Label format fit** for the plugin and for drivers unconfirmed | Small, verify early | One frozen endpoint |
 
-## What already exists and should be reused, not rebuilt
+## The two gaps that are not engineering problems
 
-Worth being explicit, because it is a meaningful head start:
+### Gap 4 — the pricing models cannot be made to agree everywhere
 
-- **`IShiplogicService` is already a clean provider abstraction.** The handover's
-  section 16 asks whether one needs introducing. It effectively exists. Renaming it
-  to `IShipmentProvider` and adding a second implementation is a small, safe
-  change that can ship in Phase 1.
-- **Three-layer idempotency** (local check, `pg_advisory_xact_lock`, cross-system
-  reference lookup) is built and battle-tested. Keep it verbatim.
-- **Hangfire retry semantics** with the deliberate throw-vs-return-Failure
-  distinction: transient errors throw so they retry, permanent errors return
-  Failure so they do not. This distinction is correct and hard-won.
-- **The guard sequence** at the single booking chokepoint, with three layers of
-  collect detection, terminal-status refusal, and special-trip handling.
-- **Geocoding with DB cache** — becomes a primary input rather than a workaround.
-- **`ShipmentStorefrontMeta`** as the single translation point for status to
-  merchant-visible labels.
-- **Circuit breaker and retry topology**, including the specific reason the
-  breaker is a singleton at the `HttpClient` layer.
-- **`SystemEvent`** as an audit trail and idempotency marker.
+The Engine prices a **loop from the depot**, cost-plus-margin:
 
-## The decision that gates everything
+```
+loopKm = depot→collection + collection→drop1 + … + dropN→depot
+cogs   = loopKm × costPerKm
+base   = cogs / (1 − margin)
+base   = base × serviceLevel.multiplier + serviceLevel.surcharge
+fuel   = base × fuelSurchargeBps
+       + extraDropFee × (N−1) + Σ packageType.surcharge + options
+total  = max(subtotal, minFee) + VAT
+```
 
-**What is the Engine's rating model?** Nothing can be built until this is decided,
-because it determines the schema, the data Delicate must collect, and the
-checkout latency budget:
+ShipLogic prices **point to point** from an account rate card. No configuration of the above
+reproduces a point-to-point table across all routes, because the depot leg and the margin divisor
+are structural.
 
-- **Zone-based** (suburb or postal-code bands to price bands). Fast, cacheable, no
-  third-party call in the hot path, predictable. Needs a zone table built and
-  maintained for Gauteng.
-- **Distance-based** (Google Distance Matrix x per-km, extending the existing
-  special-trip model). Already proven in code, already priced per km, but puts a
-  third-party call in every checkout quote and raises the billing question in
-  [Deliverable 6](06-external-integrations.md).
-- **Hybrid** — zone table for known coverage, distance fallback beyond it. This
-  matches how the business already behaves: ShipLogic rates inside coverage,
-  per-km special trip outside it. **This is the recommended model** precisely
-  because it mirrors existing commercial behaviour, which satisfies the handover's
-  requirement not to change pricing as a side effect of the migration.
+The handover's section 29 requires that the migration not change pricing. Taken literally against
+these two functions, **that requirement cannot be met**. So it needs restating as a decision, in
+writing, before any pricing work:
 
-Alongside it, two commercial inputs are needed that are not in the code and cannot
-be derived from it:
+- **Option A** — Engine reproduces ShipLogic prices within an agreed tolerance across a
+  representative route matrix. Requires the exported ShipLogic rate card and accepts that
+  outliers exist.
+- **Option B** — Checkout prices change on migration; merchants are told in advance, and the
+  change is defensible because Delicate now owns and can explain every price.
 
-1. The **current rate card as configured in ShipLogic**, exported so the Engine can
-   reproduce it exactly. Without this there is no way to prove the migration did
-   not change pricing, which is the handover's section 29 requirement.
-2. The **membership tier definitions** (the record of a Starter/Growth/Enterprise
-   model exists operationally but not in this codebase) and how they should
-   interact with per-client rate cards.
+Shadow-comparing quotes on real traffic (Phase 4) sizes the gap before the decision is forced. Do
+that first.
 
-Until the rate card is exported and the rating model chosen, Phase 2 cannot be
-estimated. That export is the recommended immediate next action after this
-discovery is approved.
+Worth noting what improves either way: the Engine's quote is a pure function, persisted with the
+rule snapshot that produced it, so every charged booking can explain its own price. The current
+position is a rate card nobody in this codebase can see.
+
+### Gap 5 — wallet gating is a commercial onboarding project
+
+The Engine gates every booking:
+
+```
+available = balance + credit_limit − holds ≥ price
+```
+
+placing a hold at booking and capturing it at settlement. Bookings through this API have no wallet
+concept at all: the merchant's own checkout already collected from the customer, and Delicate bills
+the merchant separately.
+
+Routing API bookings into the Engine therefore requires **every merchant to have an Engine account
+with a funded wallet or agreed credit terms**. For the anchor clients (Honey Bee Baker, Baked by
+Nataleen, Cake Aways by Marone, Sugarplum Treats SA, Crumble GF, Taya Bakes) that is a commercial
+conversation about payment terms, not a code change.
+
+This is the **largest non-engineering dependency in the project** and it gates Phase 6 entirely. It
+should start now, in parallel with Phase 1, because it has a lead time that engineering cannot
+compress.
+
+## What this repo brings that the Engine does not have
+
+The seam is not one-directional. This API holds things worth keeping deliberately:
+
+- **A clean provider abstraction already exists.** `IShiplogicService` is eight methods, nothing
+  bypasses it, no ShipLogic type leaks past it except its DTOs. Renaming it to `IShipmentProvider`
+  and adding a second implementation is a small, safe change.
+- **Three-layer idempotency**, battle-tested against real incidents.
+- **The guard sequence** — collect detection at three layers, terminal-status refusal, special-trip
+  handling — encoding merchant behaviour the Engine has never seen.
+- **Geocoding with a DB cache**, which becomes a primary input to loop pricing rather than the
+  ShipLogic workaround it was built as.
+- **Plugin and storefront knowledge** in `.agents/memory/`: delivery-slot meta keys that differ per
+  checkout plugin, Woo timezone handling, polymorphic Woo meta, Shopify pickup detection, DingDong
+  delivery date/time in `line_items[].properties`. None of this exists in the Engine and all of it
+  is needed for merchant bookings to be correct.
+
+## Two constraints the Engine removes
+
+Both are costing the business today:
+
+- **Special trips become bookable.** ShipLogic denies SPX creation on this account and the
+  permission cannot be enabled, so out-of-coverage orders currently get a per-km checkout quote and
+  then a human books the trip manually in the ShipLogic dashboard off an admin email. The Engine
+  owns dispatch, so the manual step disappears.
+- **Date-conditional pricing becomes possible.** Weekend and public-holiday surcharges have
+  nowhere to live today. The Engine's rate card is the right place — but per the migration rules,
+  build the framework switched off and enable it as a separate release.
+
+## Revised critical path
+
+1. **Engine: machine-to-machine auth** (gap 1). Nothing else starts without it.
+2. **This repo: Phase 1** — contract tests on the six endpoints, provider rename, `Shipment.Provider`,
+   routing columns. Ships to production as a no-op.
+3. **In parallel, commercially**: export the ShipLogic rate card; decide Option A or B on pricing;
+   begin merchant wallet/credit conversations.
+4. **Engine: merchant account mapping** (gap 6) and the booking adapter (gaps 2 and 3).
+5. **Shadow rate comparison** to size the pricing gap on real traffic.
+6. Then the phased plan in [Deliverable 9](09-phased-plan.md) proceeds as written.
+
+Step 3 is the long pole, and none of it is engineering work.

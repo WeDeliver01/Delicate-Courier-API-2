@@ -17,9 +17,10 @@ ShipLogic dependency located and categorised, database and identifier strategy
 established, webhooks and jobs mapped, external integrations mapped, gap analysis
 complete.
 
-**Blocking question raised:** does a Delicate Engine exist outside this repository?
-Phase 2 cannot be scoped until that is answered. See
-[Deliverable 7](07-engine-gap-analysis.md).
+**Blocking question raised and since answered:** the Engine exists, at
+`WeDeliver01/Delicate-Engine` @ `c84998b`, and is substantially built.
+[Deliverable 7](07-engine-gap-analysis.md) was rewritten against it on 2026-10-01;
+Phase 2 below is the revised version.
 
 ---
 
@@ -84,60 +85,65 @@ as a mechanical commit with no behavioural change in the same commit.
 
 ---
 
-## Phase 2 — Build the Engine
+## Phase 2 — Build the integration seam
 
-**Objective:** build the platform. This is the bulk of the project.
+**Objective:** make the Engine callable by this API on behalf of a merchant.
 
-> **Deviation from the handover.** The handover frames Phase 2 as confirming the
-> Engine has equivalent capabilities and filling gaps. In reality this is a
-> greenfield build of a rate engine, a booking store, label generation, tracking,
-> and driver operations. It should be planned and estimated as such.
+> **Revised 2026-10-01.** This phase previously read as a greenfield build of a rate
+> engine, booking store, labels, tracking and driver operations. The Engine already
+> has all of those ([Deliverable 7](07-engine-gap-analysis.md)). The work is the
+> seam, and two of its hardest items are commercial rather than technical.
 
-**Gate before any code:** the rating model decision
-([Deliverable 7](07-engine-gap-analysis.md)). Recommended: hybrid zone table with
-per-km distance fallback, mirroring existing commercial behaviour so pricing does
-not move as a side effect.
+**Gates before any code**
+
+1. **Machine-to-machine auth on the Engine** (gap 1). `POST /v1/account/bookings` is
+   `@RequireAccount()` and needs a Supabase JWT plus `X-Account-Id`; this API has no
+   user principal. Nothing else in this phase can start first.
+2. **The pricing decision** (gap 4). Option A, reproduce ShipLogic within an agreed
+   tolerance; or Option B, prices change and merchants are told. The two rating
+   functions cannot be made to agree everywhere, so this is a decision, not an
+   engineering target.
+3. **Merchant wallet/credit terms** (gap 5). The Engine gates every booking on
+   `available = balance + credit_limit − holds ≥ price`. Every merchant that books
+   needs an Engine account funded or on credit. Commercial lead time; start it in
+   parallel with Phase 1.
 
 **Changes, in dependency order**
 
-1. **Rating engine** — zones, per-client rate cards, service levels, minimums,
-   surcharge framework (weekend, public holiday, capacity-constrained date) built
-   as *conditions that exist but are switched off*, so the schema is right and the
-   commercial change is a separate decision.
-2. **Booking store** — shipments, addresses, contacts, parcels, references,
-   lifecycle, status history.
-3. **Lookup by customer reference** — exact-match semantics, replicating the strict
-   false-positive guard in the current implementation.
-4. **Label generation** — scannable barcode, tracking reference, addresses, parcel
-   details, printable. Not in the handover's list; on the critical path because
-   `POST /api/webhooks/plugin/label` is a frozen endpoint.
-5. **Tracking and events** — status vocabulary as a verbatim superset of the live
-   ShipLogic strings, confirmed against production data first.
-6. **Cancellation.**
-7. **Capacity and availability** — the source of truth for whether a date can be
-   booked (handover section 31), enforced in the Engine, never in the API layer.
-8. **Driver allocation and operational status capture** — large, and required
-   before any real cutover, because a booking the Engine accepts must be
-   deliverable.
+1. **Engine: service-credential auth** that can assert an account without a human JWT.
+2. **Identity mapping** (gap 6): `Store` → Engine `account`, stored and auditable.
+3. **Booking adapter** (gaps 2 and 3): hold a quote between the rate call and the
+   booking call, or re-quote at booking time. Treat `quote_used` as idempotent
+   success by resolving the booking that consumed the quote, and `quote_expired` as
+   a re-quote. Hangfire retries across ~24h, so both will fire routinely.
+4. **Lookup by customer reference** — `WC-{WooOrderID}`, exact-match semantics,
+   replicating the strict false-positive guard in the current implementation.
+5. **Status vocabulary** (gap 7): Engine-facing superset containing the live
+   ShipLogic strings verbatim, confirmed against production data first. Keep
+   `ShipmentStorefrontMeta.StatusLabel` as the single translation point.
+6. **Label fit** (gap 8): confirm the Engine's waybill label satisfies the plugin
+   and the drivers, with real printing and real scanning.
+7. **Date-conditional surcharges** in the Engine rate card — the one genuine
+   capability gap. Built as conditions that exist but are **switched off**.
 
-**Tests:** unit tests on rating against the exported ShipLogic rate card fixture,
-asserting the Engine reproduces current prices for a matrix of real routes. This is
-the single most important test suite in the project.
+**Tests:** the Phase 1 contract fixtures run against the Engine path. Rating tests
+against the exported ShipLogic rate card, asserting whatever tolerance Option A
+settled on, across a representative route matrix.
 
-**Deployment:** Engine deployed and reachable, no production traffic routed to it.
+**Deployment:** Engine reachable from this API, no production traffic routed to it.
 
-**Rollback:** nothing to roll back; nothing is routed yet.
+**Rollback:** nothing routed yet.
 
 **Success criteria**
-- Engine reproduces the exported ShipLogic rate card within an agreed tolerance
-  across a representative route matrix
-- A shipment can be created, labelled, tracked and cancelled through internal calls
-- Capacity rules enforced in the Engine
-- Drivers can be allocated and can record collection and delivery
+- This API can quote, book, label, track and cancel through the Engine for a test
+  merchant account, end to end
+- Contract fixtures pass against both providers
+- Pricing tolerance agreed in writing and measured against the exported rate card
+- At least one real merchant has an Engine account with agreed terms
 
-**Risks:** the rate card may not be exportable in a form that can be reproduced
-exactly, in which case the acceptable tolerance becomes a commercial decision, made
-explicitly and in writing rather than discovered after cutover.
+**Risks:** gate 3 has a commercial lead time engineering cannot compress, and gate 2
+may surface a price change the business has to communicate. Both are cheaper to
+confront here than during a cutover.
 
 ---
 

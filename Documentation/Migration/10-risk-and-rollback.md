@@ -50,19 +50,25 @@ Mitigations:
 
 Ordered by expected cost, not likelihood.
 
-### R1 — Pricing changes silently during migration
+### R1 — Pricing changes on migration
 
-**Severity: critical. Likelihood: high if unmanaged.**
+**Severity: critical. Likelihood: certain to some degree.**
 
-The Engine's rating is a new implementation of commercial logic that currently lives
-in a ShipLogic rate card nobody in this codebase can see. Any divergence directly
-changes what customers are charged at checkout, and the handover (section 29) is
-explicit that this must not happen as a side effect.
+Revised 2026-10-01, and upgraded from "high if unmanaged" to "certain to some
+degree" now that both rating functions are known.
 
-Mitigation: export the rate card in Phase 1 and commit it as a fixture. Make
-"reproduces the fixture across a representative route matrix" the Phase 2 exit
-criterion. Shadow rate comparison in Phase 4 on real traffic including a weekend.
-Agree the acceptable tolerance in writing, as a commercial decision, before Phase 6.
+The Engine prices a **loop from the depot**, cost-plus-margin. ShipLogic prices
+**point to point** off an account rate card. These are structurally different
+functions and no configuration makes them agree across all routes, because the depot
+leg and the margin divisor are structural. So the handover's section 29 requirement
+that pricing not change cannot be met literally.
+
+Mitigation: export the ShipLogic rate card in Phase 1 and commit it as a fixture.
+Shadow-compare quotes on real traffic in Phase 4, including a weekend, to **size**
+the divergence before it has to be decided. Then take the decision explicitly and in
+writing: reproduce within an agreed tolerance and accept outliers, or accept a price
+change and tell merchants in advance. Either is defensible; discovering it during a
+cutover is not.
 
 **This is the project's defining risk.** Everything else is recoverable.
 
@@ -80,17 +86,29 @@ response attaching an unrelated shipment. Test the crash window explicitly: kill
 process between Engine create and local save, then let Hangfire retry, and assert
 one shipment.
 
-### R3 — The Engine is not operationally ready when the API is
+### R3 — Merchants have no Engine wallet or credit terms when the code is ready
 
-**Severity: critical. Likelihood: medium.**
+**Severity: critical. Likelihood: high.**
 
-The API migration is the visible work and the easier half. Drivers, dispatch, and
-operational status capture are the harder half and are not currently anywhere. A
-booking the Engine accepts but cannot deliver is worse than no migration.
+Revised 2026-10-01. The original version of this risk was that driver operations
+would not be ready; the Engine has `dispatch`, `fleet`, the Expo driver app and POD
+built, so that concern is substantially retired. What replaces it is larger.
 
-Mitigation: Phase 5 gates on the full lifecycle, not the booking endpoint. Treat
-driver operations as a Phase 2 deliverable with equal weight to rating, and resist
-the sequencing where the API is ready and waiting on operations.
+The Engine gates every booking on `available = balance + credit_limit − holds ≥
+price`, placing a hold at booking and capturing it at settlement. Bookings through
+this API have no wallet concept: the merchant's checkout already collected from the
+customer. So every merchant that books through the Engine needs an account that is
+funded or on agreed credit terms.
+
+For the anchor clients that is a conversation about payment terms, not a deployment.
+It has a lead time engineering cannot compress, and it gates Phase 6 completely: the
+code can be finished and correct and still unable to move a single client.
+
+Mitigation: start the commercial conversations in parallel with Phase 1, not after
+Phase 2. Treat "at least one real merchant has an Engine account with agreed terms"
+as a Phase 2 exit criterion so the dependency surfaces early. Sequence the first
+cohort around whichever merchant agrees terms first, rather than around code
+readiness.
 
 ### R4 — Merchant-visible status vocabulary changes
 
@@ -195,6 +213,10 @@ commercial decision and its own announcement to merchants.
 
 Everything below must be true before the first external client moves:
 
+- [ ] Machine-to-machine auth on the Engine, so this API can act for a merchant
+- [ ] The migrating merchant has an Engine account, funded or on agreed credit terms
+- [ ] Pricing decision taken in writing: reproduce within tolerance, or accept a
+      documented change and tell merchants in advance
 - [ ] Contract tests pass against both providers, from the same fixtures
 - [ ] Exported ShipLogic rate card committed; Engine reproduces it within the agreed
       written tolerance
