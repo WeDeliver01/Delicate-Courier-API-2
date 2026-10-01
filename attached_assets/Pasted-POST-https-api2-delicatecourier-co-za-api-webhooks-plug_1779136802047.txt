@@ -1,0 +1,64 @@
+POST · https://api2.delicatecourier.co.za/api/webhooks/plugin/order · HTTP 401 · 1363 ms
+Request headers
+Content-Type: application/json
+Accept: application/json
+X-Store-ID: 3
+X-Plugin-Signature: [redacted len=44]
+User-Agent: DelicateCourierPlatform/2.2.2 WordPress/6.9.4
+Request body
+{
+    "event": "order.test",
+    "woo_order_id": 999999,
+    "order_number": "TEST-Ecyh7w",
+    "status": "processing",
+    "total": 100,
+    "shipping_total": 0,
+    "currency": "ZAR",
+    "payment_method": "test",
+    "date_created": "2026-05-18 22:39:29",
+    "customer_note": "Plugin connectivity test",
+    "customer": {
+        "name": "Plugin Test Customer",
+        "email": "test@example.com",
+        "phone": "0820000000"
+    },
+    "shipping_address": {
+        "street": "1 Test Street",
+        "city": "Pretoria",
+        "state": "Gauteng",
+        "postcode": "0001",
+        "country": "ZA"
+    },
+    "line_items": [
+        {
+            "id": 1,
+            "product_id": 1,
+            "name": "Test product",
+            "quantity": 1,
+            "price": 100,
+            "sku": "TEST"
+        }
+    ],
+    "total_weight": 1,
+    "store_url": "https://www.honeybeebaker.co.za/staging",
+    "store_id": "3",
+    "delivery_date": null,
+    "delivery_time": null,
+    "collection_date": null,
+    "collection_time": null,
+    "occasion": null
+}
+Response headers
+content-encoding: gzip
+content-type: application/json; charset=utf-8
+date: Mon, 18 May 2026 20:39:30 GMT
+server: Kestrel
+strict-transport-security: max-age=63072000; includeSubDomains
+vary: Accept-Encoding
+via: 1.1 google
+alt-svc: h3=":443"; ma=2592000
+Response body
+{
+    "error": "Invalid signature"
+}
+2026-05-18 22:39:29	info	  platform.sign	BodyLen=745 BodySha256=b023db761fd029155782a1df802ec5baa2258654e43d642196ffa18d7ebfc5a7 SecretLen=43 SecretSha256=4ce426ca59b27f10e9d182e3f1753cf9bcc0f2415ec4d53dcb6b7e277d005387 Sig=oxXd4GpXOx4ANR2dpfNe1N33U2cLGx807WPp7AGbkQI=

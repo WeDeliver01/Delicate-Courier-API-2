@@ -1,0 +1,71 @@
+2026-05-19 01:50:00	info	  order.skip	Order 11980 already synced
+2026-05-19 01:49:59	info	  order.synced	Order 11980 -> platform 3
+2026-05-19 01:49:59	info	▾ platform.order	Signed order push (attempt 1/3)
+POST · https://api2.delicatecourier.co.za/api/webhooks/plugin/order · HTTP 200 · 2831 ms
+Request headers
+Content-Type: application/json
+Accept: application/json
+X-Store-ID: 3
+X-Plugin-Signature: [redacted len=0]
+X-DCP-Request-Marker: dcp-YZLPVg8ci8dtumWz
+User-Agent: DelicateCourierPlatform/2.2.3 WordPress/6.9.4
+Request body
+{
+    "event": "order.created",
+    "woo_order_id": 11980,
+    "order_number": "11980",
+    "status": "pending",
+    "total": 130,
+    "shipping_total": 0,
+    "currency": "ZAR",
+    "payment_method": "Paid In Store (Yoco)",
+    "date_created": "2026-05-18 23:49:56",
+    "customer_note": "",
+    "customer": {
+        "name": "TESTING TESTING",
+        "email": "shaunbaloyi08@gmail.com",
+        "phone": ""
+    },
+    "shipping_address": {
+        "street": "10 Camellia Avenue",
+        "city": "Pretoria",
+        "state": "GP",
+        "postcode": "0040",
+        "country": "ZA"
+    },
+    "line_items": [
+        {
+            "id": 11306,
+            "product_id": 5356,
+            "name": "Brownies",
+            "quantity": 1,
+            "price": 15,
+            "sku": ""
+        }
+    ],
+    "total_weight": 1,
+    "store_url": "https://www.honeybeebaker.co.za/staging",
+    "store_id": "3",
+    "delivery_date": "2026-05-29",
+    "delivery_time": "10:30 - 12:30",
+    "collection_date": "2026-05-29",
+    "collection_time": "09:00",
+    "occasion": "test"
+}
+Response headers
+content-encoding: gzip
+content-type: application/json; charset=utf-8
+date: Mon, 18 May 2026 23:49:59 GMT
+server: Kestrel
+strict-transport-security: max-age=63072000; includeSubDomains
+vary: Accept-Encoding
+via: 1.1 google
+alt-svc: h3=":443"; ma=2592000
+Response body
+{
+    "success": true,
+    "message": "Order created successfully",
+    "orderId": 3,
+    "orderNumber": "11980"
+}
+2026-05-19 01:49:59	info	  platform.sign	BodyLen=820 BodySha256=1e6e7b05bae78e8d5218ccae135d5917aef17c82c9043e42ef33d30fafe37d62 SecretLen=43 SecretSha256=4ce426ca59b27f10e9d182e3f1753cf9bcc0f2415ec4d53dcb6b7e277d005387 Sig=Yt1QQ8/6hRy1U6gMHJIXlKIQTS2JlhwXuy3pLdWV+rw=

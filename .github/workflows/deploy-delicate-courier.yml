@@ -1,0 +1,23 @@
+# Azure deployment workflow has been removed.
+#
+# This project no longer deploys to Azure. The previous workflow that built and
+# pushed Docker images to Azure Container Registry / Azure Container Apps has
+# been intentionally disabled and emptied out.
+#
+# Replace this file with a workflow for your new hosting target if needed,
+# or delete the file (`.github/workflows/deploy-delicate-courier.yml`) manually
+# from your local clone — the agent is not permitted to delete files under
+# `.github/workflows/`.
+
+name: Disabled - Azure deploy removed
+
+on:
+  workflow_dispatch:
+
+jobs:
+  noop:
+    name: No-op
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notice
+        run: echo "Azure deployment has been removed from this repository."

@@ -1,0 +1,226 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "u0VbdQKAf-yuHICabHHnU"
+uri = "file://exports/delicate-couriers-build.zip"
+type = "unspecified"
+title = "Delicate Couriers — full codebase"
+logical_id = "e1a34795-b388-4b4f-8265-aa2126aecc8b"
+
+[[outputs]]
+id = "ZSWw8-bp3Q4ZCPeuDtGNH"
+uri = "file://Plugins/WooCommerce/Default Plugin/delicate-courier-platform-v2.0.0.zip"
+type = "unspecified"
+title = "Delicate Courier Platform — Default (v2.2.5)"
+logical_id = "0abb831c-fff8-46fd-b383-ea746529e2a2"
+
+[[outputs]]
+id = "zp6-8cvKQfhcZ0jS_9yCD"
+uri = "file://dist/delicate-couriers-codebase.zip"
+type = "unspecified"
+title = "delicate-couriers-codebase.zip (full source, 28 MB)"
+logical_id = "e5ec670b-2677-4ebc-88d8-ecb9469c8713"
+
+[[outputs]]
+id = "UbwcVQ1uFtSLQ4dx2W3G-"
+uri = "file://dist/delicate-courier-platform-2.1.0.zip"
+type = "unspecified"
+title = "Delicate Courier Platform plugin v2.1.0 (installable ZIP)"
+logical_id = "932b4f0d-0758-4301-abf0-587e72b0467f"
+
+[[outputs]]
+id = "0HMghpKZcmf0V3D3pWiuK"
+uri = "file://dist/delicate-courier-platform-2.2.1.zip"
+type = "unspecified"
+title = "Delicate Courier Platform v2.2.1 (credential sanitisation fix)"
+logical_id = "3188c7c2-2182-4424-b64e-fda74094a425"
+
+[[outputs]]
+id = "srfIjM3cj1mOV0H2HrX8N"
+uri = "file://dist/delicate-courier-platform-2.2.2.zip"
+type = "unspecified"
+title = "Delicate Courier Platform v2.2.2 (with signing diagnostics)"
+logical_id = "f742e06f-c7f8-4980-971b-5a7358ab96dd"
+
+[[outputs]]
+id = "ZICp7vZ0BT0vJJDcEgjW2"
+uri = "file://dist/delicate-courier-platform-2.2.3.zip"
+type = "unspecified"
+title = "Delicate Courier Platform plugin v2.2.3"
+logical_id = "5a039aa7-0289-4120-a4f9-67c6692bc69e"
+
+[[outputs]]
+id = "l2GfnuY8e0CHYCluri-MI"
+uri = "file://dist/plugins/delicate-courier-platform-default.zip"
+type = "unspecified"
+title = "Delicate Courier Platform v2.2.5 (default)"
+logical_id = "6004293f-1f04-4bd6-8a65-9f4fe2d238a6"
+
+[[outputs]]
+id = "AI55m5pDQKs9ObFc8hDcc"
+uri = "file://dist/plugins/delicate-courier-platform-honeybee.zip"
+type = "unspecified"
+title = "Delicate Courier Platform v2.0.2 (HoneyBee Bakery)"
+logical_id = "83ea94e4-af8e-47cf-8c76-129ea6243981"
+
+[[outputs]]
+id = "60oKJhSKBarpyj-7fUQCp"
+uri = "file://dist/plugins/we-deliver-platform-nateleens.zip"
+type = "unspecified"
+title = "We Deliver Platform v2.0.2 (Nateleens Bakery)"
+logical_id = "d7ffc2cf-6440-4a5c-a20c-4a929e26668d"
+
+[[outputs]]
+id = "jAyTMgH2m2Pg9QzoFjOnR"
+uri = "file://Plugins/WooCommerce/HoneyBee Bakery/delicate-courier-platform-v2.0.0.zip"
+type = "unspecified"
+title = "Delicate Courier Platform — HoneyBee Bakery (v2.2.5)"
+logical_id = "456a9d63-29fb-4905-ac48-b23d43650d38"
+
+[[outputs]]
+id = "1mKbtppzwz1_rRQmyf2oP"
+uri = "file://Plugins/WooCommerce/Nateleens Bakery/we-deliver-platform-v2.0.0.zip"
+type = "unspecified"
+title = "Delicate Courier Platform — Nateleens Bakery (v2.2.5)"
+logical_id = "cf3834ae-100c-48bf-a2b2-ac2b03906ff2"
+
+[[outputs]]
+id = "hy5PWZ30lgw_UrRpxiC8P"
+uri = "file://Plugins/WooCommerce/Default Plugin/delicate-courier-platform-v2.2.5.zip"
+type = "unspecified"
+title = "Delicate Courier Platform — Default (v2.2.5)"
+logical_id = "9d765aff-b0b0-4103-839c-5547d73c0f01"
+
+[[outputs]]
+id = "x48ndq0d7EK8n4Lool5Tm"
+uri = "file://Plugins/WooCommerce/HoneyBee Bakery/delicate-courier-platform-v2.2.5.zip"
+type = "unspecified"
+title = "Delicate Courier Platform — HoneyBee Bakery (v2.2.5)"
+logical_id = "e788c9b6-547d-4fd7-9269-a9bdacf6f9dd"
+
+[[outputs]]
+id = "wxHLfndFwwCbRPp6WPBKn"
+uri = "file://Plugins/WooCommerce/Nateleens Bakery/we-deliver-platform-v2.2.5.zip"
+type = "unspecified"
+title = "Delicate Courier Platform — Nateleens Bakery (v2.2.5)"
+logical_id = "8c62d426-3b76-40bc-9c39-cdd0f105f979"
+
+[[outputs]]
+id = "SqSWJwIver9-_J785Vab5"
+uri = "file://Plugins/WooCommerce/Default Plugin/delicate-courier-platform-v2.2.6.zip"
+type = "unspecified"
+title = "Delicate Courier Platform — Default (v2.2.6)"
+logical_id = "ad812b7e-564f-4e50-ab80-842000c38465"
+
+[[outputs]]
+id = "qox5Wl7HuJgPF_hlbrQd7"
+uri = "file://Plugins/WooCommerce/HoneyBee Bakery/delicate-courier-platform-v2.2.6.zip"
+type = "unspecified"
+title = "Delicate Courier Platform — HoneyBee Bakery (v2.2.6)"
+logical_id = "47b4f68e-ae58-440d-a5dc-3d470dd4cbae"
+
+[[outputs]]
+id = "UKRfcLcN1E1SatgPXIH8l"
+uri = "file://Plugins/WooCommerce/Nateleens Bakery/we-deliver-platform-v2.2.6.zip"
+type = "unspecified"
+title = "Delicate Courier Platform — Nateleens Bakery (v2.2.6)"
+logical_id = "5052b58a-c86c-453a-8c60-f345ad7a5494"
+
+[[outputs]]
+id = "a1i06Mk0LUqOPVPXbyjQn"
+uri = "file://Plugins/WooCommerce/CHANGELOG.md"
+type = "text"
+title = "WooCommerce Plugin Changelog (v1.1.2 → v2.2.6)"
+logical_id = "fca90873-effa-47e4-9aa0-e9e465530342"
+
+[[outputs]]
+id = "O1N0WYV1kawPtMfvWwUtz"
+uri = "file://Plugins/WooCommerce/Default Plugin/delicate-courier-platform-v2.3.0.zip"
+type = "unspecified"
+title = "Delicate Courier Platform — Default (v2.3.0)"
+logical_id = "970d2d74-e17d-472b-a62a-792e938e826e"
+
+[[outputs]]
+id = "44lh3Np_YjJbMEFiQ_xBg"
+uri = "file://Plugins/WooCommerce/HoneyBee Bakery/delicate-courier-platform-v2.3.0.zip"
+type = "unspecified"
+title = "Delicate Courier Platform — HoneyBee Bakery (v2.3.0)"
+logical_id = "6c2ce62a-d7e9-4da4-9866-96d5904da655"
+
+[[outputs]]
+id = "greiOj4Y5_07_4Wey_Avy"
+uri = "file://Plugins/WooCommerce/Nateleens Bakery/we-deliver-platform-v2.3.0.zip"
+type = "unspecified"
+title = "We Deliver Platform — Nateleens Bakery (v2.3.0)"
+logical_id = "889b1bc9-b219-44ad-90ee-a5b3ebaa6e34"
+
+[[outputs]]
+id = "n-RRgXKW2Y6j_q1kyPMD5"
+uri = "file://dist/delicate-two-step-checkout-2.2.2.zip"
+type = "unspecified"
+title = "Delicate Two-Step Checkout v2.2.2 (special-trip fix)"
+logical_id = "e9dd715c-b23c-416e-a218-1369c3ad0d3d"
+
+[[outputs]]
+id = "Wj9wej5A8Hpl-Sy_JzLuu"
+uri = "file://dist/delicate-couriers-source.zip"
+type = "unspecified"
+title = "Delicate Couriers — source code"
+logical_id = "83b55d72-102d-4d13-9ef3-ff175a0f0f9b"
+
+[[outputs]]
+id = "c0wtlaXim_w26b4wz6pSk"
+uri = "file://DelicateCouriers/SHOPIFY_MERCHANT_RUNBOOK.docx"
+type = "word_document"
+title = "Shopify Merchant Setup Guide (Word)"
+logical_id = "d5975bbf-ee39-4cea-810d-55960eaa2d37"
+
+[[outputs]]
+id = "N3V6VUiaO8w6DaAs7l-zD"
+uri = "file://exports/delicate-couriers-codebase.zip"
+type = "unspecified"
+title = "Delicate Couriers — Full Source Codebase (zip)"
+logical_id = "06b28ae0-333e-40cd-830b-ef389fdf7c55"
+
+[[outputs]]
+id = "j1oxPiDu7lQ5I2R2cx1dQ"
+uri = "file://Plugins/WooCommerce/Default Plugin/delicate-courier-platform-v2.7.0.zip"
+type = "unspecified"
+title = "Delicate Courier Platform plugin v2.7.0"
+logical_id = "d7a0aba2-8134-4063-b4bc-dcf3ea77c81d"
+
+[[outputs]]
+id = "ypRYqVQGap2rJ96PoAj4Z"
+uri = "file://Plugins/WooCommerce/Default Plugin/delicate-courier-platform-v2.8.0.zip"
+type = "unspecified"
+title = "Delicate Courier Platform plugin v2.8.0"
+logical_id = "d9a4e117-bc06-490e-b5a0-c789764b1143"
+
+[[outputs]]
+id = "qEy4NpTm-lX-XG3hzX3Hk"
+uri = "file://Plugins/WooCommerce/Default Plugin/delicate-courier-platform-v2.9.0.zip"
+type = "unspecified"
+title = "Delicate Courier Platform plugin v2.9.0"
+logical_id = "70ec4247-5245-41a7-8dba-2d600c38c26e"
+
+[[outputs]]
+id = "H64e6pbrNUABdmqfONqYw"
+uri = "file://Plugins/WooCommerce/Default Plugin/delicate-courier-platform-v2.9.1.zip"
+type = "unspecified"
+title = "Delicate Courier Platform plugin v2.9.1 (license section restored)"
+logical_id = "38035bb4-c752-4d7d-98b9-12ffb19e7246"
+
+[[outputs]]
+id = "M9iTqwChekxEicaivsKA9"
+uri = "file://exports/delicate-couriers-source-backup.zip"
+type = "unspecified"
+title = "Delicate Couriers — Source Backup"
+description = "Frontend, backend, plugins, documentation, migrations, database column inventory, and secret-name template. No secret values or live database records. ZIP integrity verified."
+logical_id = "e7fc7145-b5bd-4872-a94d-269fc3d0ebda"
+content_hash = "sha256:b11536178ecd922c296f9169a5b99ddd94ac917526c8de84430b3450c6146eb5"
+size = 10860102
+mtime_ms = 1789069174945
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:c9076068-5158-42d4-a9fd-946366163608/e7fc7145-b5bd-4872-a94d-269fc3d0ebda/80280dbd-7bb6-4ac1-b49e-a75c15168188"
+storage_version_token = "1789069182141919"
+content_type = "application/octet-stream"

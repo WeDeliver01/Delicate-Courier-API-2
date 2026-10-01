@@ -1,0 +1,15 @@
+- [Backup tooling](backup-tooling.md) — installing a newer PostgreSQL client may not change PATH priority; verify the actual pg_dump version before exporting.
+- [Shopify pickup detection](shopify-pickup-detection.md) — Shopify pickup orders have shipping_address=null (delivery orders never do); merchant-named pickup lines evade keyword checks and cause Shiplogic "postal_code required" failures.
+- [Special-trip fallback](special-trip-fallback.md) — Shopify + Woo backend fallback rate; Woo plugin filters by its local service code and detection is label-based via Woo REST; needs merchant key with Distance Matrix enabled.
+- [Shopify integration gotchas](shopify-integration.md) — snake_case JSON binding, always-200 carrier callback, 64-bit order-ids, and custom-app token rotation (401 "Invalid API key") wiping our carrier service.
+- [Woo delivery-slot meta](woo-delivery-slot-meta.md) — checkout plugins store the slot in differing meta keys; unmatched keys silently book next-day. Inspect live order meta via Woo REST first.
+- [Shopify DingDong delivery date/time](shopify-dingdong-delivery.md) — DingDong app writes delivery date/time to line_items[].properties (NOT note_attributes); date is weekday-prefixed, time is 12h AM/PM range.
+- [Shiplogic booking reliability](shiplogic-booking.md) — attach our own lat/lng to delivery addresses & use 100s timeout; vague ZA addresses stall Shiplogic create even when rates return fast.
+- [Shiplogic label download](shiplogic-labels.md) — label endpoint is GET /v2/shipments/label?id= returning JSON {url}; fetch the presigned URL WITHOUT auth header. Path-style /label routes 404.
+- [Replit deploy lacks tzdata](replit-deploy-tzdata.md) — FindSystemTimeZoneById works in dev but file-not-founds in the prod container; always fall back to a fixed-offset zone (SAST=UTC+2, no DST).
+- [Woo DTO deserialization](woo-dto-deserialization.md) — Woo meta values are polymorphic (object/array); string-typed DTOs crash whole-order fetches and the LookupFailed fail-safe then withholds ALL bookings.
+- [Woo timezone handling](woo-timezone-handling.md) — Woo `date_created` is site-local wall-clock with PER-MERCHANT timezones; prefer `date_created_gmt` (REST) or infer via webhook arrival time, never stamp raw as UTC.
+- [Admin email notifications](admin-email-notifications.md) — Resend without a verified domain 403s except to the account owner's own address; ADMIN_NOTIFY_EMAIL controls recipient.
+- [Shared Hangfire dev/prod](shared-hangfire-dev-prod.md) — prod worker steals dev-enqueued jobs (old code runs!); test job code via sync endpoints; wrap manual EF transactions in CreateExecutionStrategy.
+- [Woo plugin order sync](woo-plugin-sync.md) — plugins used to sync each order once; status changes never re-sent, so status-triggered bookings silently missed. Fix must ship to live stores & all 3 plugin copies.
+- [WeTransfer downloads](wetransfer-download.md) — we.tl links can be fetched headlessly via the v4 transfers/download API; no CSRF token needed.

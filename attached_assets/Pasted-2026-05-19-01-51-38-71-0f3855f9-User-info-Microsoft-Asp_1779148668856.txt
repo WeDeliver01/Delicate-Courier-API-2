@@ -1,0 +1,129 @@
+2026-05-19 01:51:38.71
+0f3855f9
+User
+info: Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker[101]
+2026-05-19 01:51:38.71
+0f3855f9
+User
+Executing action method DelicateCouriers.ApiService.Features.Shipments.ShipmentsController.CreateShipment (DelicateCouriers.ApiService) - Validation state: Valid
+2026-05-19 01:51:38.71
+0f3855f9
+User
+Received request to create shipment for OrderID: 11980
+2026-05-19 01:51:38.71
+0f3855f9
+User
+info: DelicateCouriers.ApiService.Features.Shipments.ShipmentsController[0]
+2026-05-19 01:51:38.71
+0f3855f9
+User
+info: DelicateCouriers.ApiService.Features.Shipments.ShipmentOrchestrationService[0]
+2026-05-19 01:51:38.71
+0f3855f9
+User
+Starting shipment creation for OrderID: 11980
+2026-05-19 01:51:38.81
+0f3855f9
+User
+Executed DbCommand (98ms) [Parameters=[@__ef_filter__BypassTenantFilter_0='?' (DbType = Boolean), @__ef_filter__CurrentTenantId_1='?' (DbType = Int32), @__orderId_0='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+2026-05-19 01:51:38.81
+0f3855f9
+User
+SELECT o."OrderID", o."ChangedBy", o."ChangedOn", o."CreatedBy", o."CreatedOn", o."CustomerEmail", o."CustomerName", o."CustomerPhone", o."Occasion", o."OrderDate", o."OrderStatus", o."OrderTotal", o."RequestedCollectionDate", o."RequestedCollectionTime", o."RequestedDeliveryDate", o."RequestedDeliveryTime", o."ShippingAddressLine1", o."ShippingAddressLine2", o."ShippingCity", o."ShippingCountry", o."ShippingPostalCode", o."ShippingProvince", o."StoreID", o."TenantID", o."WooOrderID", o."WooOrderNumber", t."StoreID" AS "StoreID0", t."ChangedBy" AS "ChangedBy0", t."ChangedOn" AS "ChangedOn0", t."CollectionAddressLine1", t."CollectionAddressLine2", t."CollectionCity", t."CollectionCompanyName", t."CollectionContactEmail", t."CollectionContactName", t."CollectionContactPhone", t."CollectionCountry", t."CollectionLatitude", t."CollectionLongitude", t."CollectionPostalCode", t."CollectionProvince", t."CollectionSuburb", t."CollectionTimeFrom", t."CollectionTimeTo", t."CreatedBy" AS "CreatedBy0", t."CreatedOn" AS "CreatedOn0", t."DefaultServiceLevel", t."DeliveryTimeFrom", t."DeliveryTimeTo", t."IsActive", t."Platform", t."ShiplogicAccountId", t."ShiplogicProviderId", t."ShopifyAccessToken", t."ShopifyStoreUrl", t."ShopifyWebhookSecret", t."StoreName", t."TenantID" AS "TenantID0", t."WebhookSecret", t."WooCommerceURL", t."WooConsumerKey", t."WooConsumerSecret", t0."ShipmentID", t0."ActualDeliveryDate", t0."ChangedBy" AS "ChangedBy1", t0."ChangedOn" AS "ChangedOn1", t0."ConsignmentID", t0."CourierName", t0."CourierService", t0."CreatedBy" AS "CreatedBy1", t0."CreatedOn" AS "CreatedOn1", t0."EstimatedDeliveryDate", t0."OrderID" AS "OrderID0", t0."ShipmentStatus", t0."ShippingCost", t0."TrackingNumber", t0."OrderID0" AS "OrderID00"
+2026-05-19 01:51:38.81
+0f3855f9
+User
+SELECT t2."OrderID", t2."ChangedBy", t2."ChangedOn", t2."CreatedBy", t2."CreatedOn", t2."CustomerEmail", t2."CustomerName", t2."CustomerPhone", t2."Occasion", t2."OrderDate", t2."OrderStatus", t2."OrderTotal", t2."RequestedCollectionDate", t2."RequestedCollectionTime", t2."RequestedDeliveryDate", t2."RequestedDeliveryTime", t2."ShippingAddressLine1", t2."ShippingAddressLine2", t2."ShippingCity", t2."ShippingCountry", t2."ShippingPostalCode", t2."ShippingProvince", t2."StoreID", t2."TenantID", t2."WooOrderID", t2."WooOrderNumber", t2."StoreID0", t2."ChangedBy0", t2."ChangedOn0", t2."CollectionAddressLine1", t2."CollectionAddressLine2", t2."CollectionCity", t2."CollectionCompanyName", t2."CollectionContactEmail", t2."CollectionContactName", t2."CollectionContactPhone", t2."CollectionCountry", t2."CollectionLatitude", t2."CollectionLongitude", t2."CollectionPostalCode", t2."CollectionProvince", t2."CollectionSuburb", t2."CollectionTimeFrom", t2."CollectionTimeTo", t2."CreatedBy0", t2."CreatedOn0", t2."DefaultServiceLevel", t2."DeliveryTimeFrom", t2."DeliveryTimeTo", t2."IsActive", t2."Platform", t2."ShiplogicAccountId", t2."ShiplogicProviderId", t2."ShopifyAccessToken", t2."ShopifyStoreUrl", t2."ShopifyWebhookSecret", t2."StoreName", t2."TenantID0", t2."WebhookSecret", t2."WooCommerceURL", t2."WooConsumerKey", t2."WooConsumerSecret", t2."ShipmentID", t2."OrderID00", t3."OrderLineItemID", t3."CreatedBy", t3."CreatedOn", t3."LineTotal", t3."OrderID", t3."ProductName", t3."ProductSKU", t3."Quantity", t3."TaxAmount", t3."TotalWeight", t3."UnitPrice", t3."VariationDetails", t3."WeightPerUnit", t3."WooLineItemID", t3."WooProductID", t3."OrderID0", t2."ActualDeliveryDate", t2."ChangedBy1", t2."ChangedOn1", t2."ConsignmentID", t2."CourierName", t2."CourierService", t2."CreatedBy1", t2."CreatedOn1", t2."EstimatedDeliveryDate", t2."OrderID0", t2."ShipmentStatus", t2."ShippingCost", t2."TrackingNumber"
+2026-05-19 01:51:38.81
+0f3855f9
+User
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+2026-05-19 01:51:38.81
+0f3855f9
+User
+FROM (
+2026-05-19 01:51:38.81
+0f3855f9
+User
+INNER JOIN (
+2026-05-19 01:53:57.08
+0f3855f9
+User
+info: DelicateCouriers.ApiService.Features.Shipments.ShipmentOrchestrationService[0]
+2026-05-19 01:53:57.08
+0f3855f9
+User
+Starting shipment creation for OrderID: 3
+2026-05-19 01:53:57.18
+0f3855f9
+User
+) AS t0 ON o."OrderID" = t0."OrderID"
+2026-05-19 01:53:57.18
+0f3855f9
+User
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+2026-05-19 01:53:57.18
+0f3855f9
+User
+SELECT o."OrderID", o."ChangedBy", o."ChangedOn", o."CreatedBy", o."CreatedOn", o."CustomerEmail", o."CustomerName", o."CustomerPhone", o."Occasion", o."OrderDate", o."OrderStatus", o."OrderTotal", o."RequestedCollectionDate", o."RequestedCollectionTime", o."RequestedDeliveryDate", o."RequestedDeliveryTime", o."ShippingAddressLine1", o."ShippingAddressLine2", o."ShippingCity", o."ShippingCountry", o."ShippingPostalCode", o."ShippingProvince", o."StoreID", o."TenantID", o."WooOrderID", o."WooOrderNumber", t."StoreID" AS "StoreID0", t."ChangedBy" AS "ChangedBy0", t."ChangedOn" AS "ChangedOn0", t."CollectionAddressLine1", t."CollectionAddressLine2", t."CollectionCity", t."CollectionCompanyName", t."CollectionContactEmail", t."CollectionContactName", t."CollectionContactPhone", t."CollectionCountry", t."CollectionLatitude", t."CollectionLongitude", t."CollectionPostalCode", t."CollectionProvince", t."CollectionSuburb", t."CollectionTimeFrom", t."CollectionTimeTo", t."CreatedBy" AS "CreatedBy0", t."CreatedOn" AS "CreatedOn0", t."DefaultServiceLevel", t."DeliveryTimeFrom", t."DeliveryTimeTo", t."IsActive", t."Platform", t."ShiplogicAccountId", t."ShiplogicProviderId", t."ShopifyAccessToken", t."ShopifyStoreUrl", t."ShopifyWebhookSecret", t."StoreName", t."TenantID" AS "TenantID0", t."WebhookSecret", t."WooCommerceURL", t."WooConsumerKey", t."WooConsumerSecret", t0."ShipmentID", t0."ActualDeliveryDate", t0."ChangedBy" AS "ChangedBy1", t0."ChangedOn" AS "ChangedOn1", t0."ConsignmentID", t0."CourierName", t0."CourierService", t0."CreatedBy" AS "CreatedBy1", t0."CreatedOn" AS "CreatedOn1", t0."EstimatedDeliveryDate", t0."OrderID" AS "OrderID0", t0."ShipmentStatus", t0."ShippingCost", t0."TrackingNumber", t0."OrderID0" AS "OrderID00"
+2026-05-19 01:53:57.18
+0f3855f9
+User
+SELECT t2."OrderID", t2."ChangedBy", t2."ChangedOn", t2."CreatedBy", t2."CreatedOn", t2."CustomerEmail", t2."CustomerName", t2."CustomerPhone", t2."Occasion", t2."OrderDate", t2."OrderStatus", t2."OrderTotal", t2."RequestedCollectionDate", t2."RequestedCollectionTime", t2."RequestedDeliveryDate", t2."RequestedDeliveryTime", t2."ShippingAddressLine1", t2."ShippingAddressLine2", t2."ShippingCity", t2."ShippingCountry", t2."ShippingPostalCode", t2."ShippingProvince", t2."StoreID", t2."TenantID", t2."WooOrderID", t2."WooOrderNumber", t2."StoreID0", t2."ChangedBy0", t2."ChangedOn0", t2."CollectionAddressLine1", t2."CollectionAddressLine2", t2."CollectionCity", t2."CollectionCompanyName", t2."CollectionContactEmail", t2."CollectionContactName", t2."CollectionContactPhone", t2."CollectionCountry", t2."CollectionLatitude", t2."CollectionLongitude", t2."CollectionPostalCode", t2."CollectionProvince", t2."CollectionSuburb", t2."CollectionTimeFrom", t2."CollectionTimeTo", t2."CreatedBy0", t2."CreatedOn0", t2."DefaultServiceLevel", t2."DeliveryTimeFrom", t2."DeliveryTimeTo", t2."IsActive", t2."Platform", t2."ShiplogicAccountId", t2."ShiplogicProviderId", t2."ShopifyAccessToken", t2."ShopifyStoreUrl", t2."ShopifyWebhookSecret", t2."StoreName", t2."TenantID0", t2."WebhookSecret", t2."WooCommerceURL", t2."WooConsumerKey", t2."WooConsumerSecret", t2."ShipmentID", t2."OrderID00", t3."OrderLineItemID", t3."CreatedBy", t3."CreatedOn", t3."LineTotal", t3."OrderID", t3."ProductName", t3."ProductSKU", t3."Quantity", t3."TaxAmount", t3."TotalWeight", t3."UnitPrice", t3."VariationDetails", t3."WeightPerUnit", t3."WooLineItemID", t3."WooProductID", t3."OrderID0", t2."ActualDeliveryDate", t2."ChangedBy1", t2."ChangedOn1", t2."ConsignmentID", t2."CourierName", t2."CourierService", t2."CreatedBy1", t2."CreatedOn1", t2."EstimatedDeliveryDate", t2."OrderID0", t2."ShipmentStatus", t2."ShippingCost", t2."TrackingNumber"
+
+2026-05-19 01:53:57.18
+0f3855f9
+User
+WHERE @__ef_filter__BypassTenantFilter_0 OR t1."TenantID" = @__ef_filter__CurrentTenantId_1
+2026-05-19 01:53:57.18
+0f3855f9
+User
+INNER JOIN (
+2026-05-19 01:53:57.18
+0f3855f9
+User
+FROM "Orders" AS o0
+2026-05-19 01:53:57.18
+0f3855f9
+User
+FROM "Orders" AS o
+2026-05-19 01:53:57.18
+0f3855f9
+User
+FROM "Shipments" AS s0
+2026-05-19 01:53:57.18
+0f3855f9
+User
+FROM "Stores" AS s
+2026-05-19 01:53:57.18
+0f3855f9
+User
+Executed DbCommand (101ms) [Parameters=[@__ef_filter__BypassTenantFilter_0='?' (DbType = Boolean), @__ef_filter__CurrentTenantId_1='?' (DbType = Int32), @__orderId_0='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+2026-05-19 01:53:57.18
+0f3855f9
+User
+) AS t1 ON s0."OrderID" = t1."OrderID"
+2026-05-19 01:53:57.18
+0f3855f9
+User
+SELECT o0."OrderID", o0."TenantID"
+2026-05-19 01:53:57.18
+0f3855f9
+User
+WHERE @__ef_filter__BypassTenantFilter_0 OR o0."TenantID" = @__ef_filter__CurrentTenantId_1
+2026-05-19 01:53:57.18
+0f3855f9
+User
+INNER JOIN (
+2026-05-19 01:53:57.18
+0f3855f9
+User
+WHERE (@__ef_filter__BypassTenantFilter_0 OR o."TenantID" = @__ef_filter__CurrentTenantId_1) AND o."OrderID" = @__orderId_0
+2026-05-19 01:53:57.18
+0f3855f9
+User
+SELECT s."StoreID", s."ChangedBy", s."ChangedOn", s."CollectionAddressLine1", s."CollectionAddressLine2", s."CollectionCity", s."CollectionCompanyName", s."CollectionContactEmail", s."CollectionContactName", s."CollectionContactPhone", s."CollectionCountry", s."CollectionLatitude", s."CollectionLongitude", s."CollectionPostalCode", s."CollectionProvince", s."CollectionSuburb", s."CollectionTimeFrom", s."CollectionTimeTo", s."CreatedBy", s."CreatedOn", s."DefaultServiceLevel", s."DeliveryTimeFrom", s."DeliveryTimeTo", s."IsActive", s."Platform", s."ShiplogicAccountId", s."ShiplogicProviderId", s."ShopifyAccessToken", s."ShopifyStoreUrl", s."ShopifyWebhookSecret", s."StoreName", s."TenantID", s."WebhookSecret", s."WooCommerceURL", s."WooConsumerKey", s."WooConsumerSecret"
+2026-05-19 01:53:57.18
+0f3855f9
+User
+FROM (

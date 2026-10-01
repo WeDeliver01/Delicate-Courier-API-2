@@ -1,0 +1,120 @@
+.blockCube {
+  position: relative;
+}
+
+.bgTop {
+  position: absolute;
+  height: 10px;
+  background: linear-gradient(90deg, rgba(2,0,36,1) 0%, rgba(52,9,121,1) 37%, rgba(0,212,255,1) 94%);
+  bottom: 100%;
+  left: 5px;
+  right: -5px;
+  transform: skew(-45deg, 0);
+  margin: 0;
+}
+
+.bgRight {
+  position: absolute;
+  background: rgba(0,212,255,1);
+  top: -5px;
+  z-index: 0;
+  bottom: 5px;
+  width: 10px;
+  left: 100%;
+  transform: skew(0, -45deg);
+}
+
+.bg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, rgba(2,0,36,1) 0%, rgba(52,9,121,1) 37%, rgba(0,212,255,1) 94%);
+}
+
+.bgInner {
+  background: #212121;
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  right: 2px;
+  bottom: 2px;
+  transition: all 0.2s ease-in-out;
+}
+
+.bgTop .bgInner {
+  bottom: 0;
+}
+
+.bgRight .bgInner {
+  left: 0;
+}
+
+.blockInput {
+  position: relative;
+}
+
+.blockInput .bgTop,
+.blockInput .bgRight,
+.blockInput .bg {
+  background: rgba(255, 255, 255, 0.5);
+  transition: background 0.2s ease-in-out;
+}
+
+.blockInput:hover .bgTop,
+.blockInput:hover .bgRight,
+.blockInput:hover .bg {
+  background: rgba(72, 62, 78, 0.8);
+}
+
+.blockInput input:focus ~ .bgRight .bgInner,
+.blockInput input:focus ~ .bgTop .bgInner,
+.blockInput input:focus ~ .bg .bgInner {
+  top: 2px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.blockButton:hover .bg .bgInner,
+.blockButton:focus .bg .bgInner {
+  top: 100%;
+}
+
+.inputText {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-family: monospace, serif;
+  letter-spacing: 0.05em;
+  font-size: 16px;
+  outline: none;
+}
+
+.inputText::placeholder {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.buttonText {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  padding: 14px 16px;
+  background: transparent;
+  outline: none;
+  border: 0;
+  color: #fff;
+  letter-spacing: 0.1em;
+  font-weight: bold;
+  font-family: monospace;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.buttonText:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

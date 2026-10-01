@@ -1,0 +1,85 @@
+Add a country normalizer and apply it in GetRatesController.cs where the addresses get built. Here's the exact change:
+New file: DelicateCouriers.ApiService/Features/Shipping/CountryNormalizer.cs
+csharpnamespace DelicateCouriers.ApiService.Features.Shipping;
+
+/// <summary>
+/// Normalizes country values to ISO-3166-1 alpha-2 codes. Shiplogic's
+/// /v2/rates endpoint silently returns rates:null when the collection and
+/// delivery country values aren't in the same format, so we standardise
+/// on ISO-2 at the boundary — regardless of what merchants have stored
+/// in the database or what the plugin sends in the request.
+/// </summary>
+public static class CountryNormalizer
+{
+    private static readonly Dictionary<string, string> _map = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // South Africa is the only one we expect in practice, but we
+        // include common neighbours and a few high-likelihood typos so
+        // this doesn't have to be revisited every time a new country is
+        // added on the platform.
+        { "South Africa", "ZA" },
+        { "RSA",          "ZA" },
+        { "ZA",           "ZA" },
+
+        { "Namibia",      "NA" },
+        { "NA",           "NA" },
+
+        { "Botswana",     "BW" },
+        { "BW",           "BW" },
+
+        { "Zimbabwe",     "ZW" },
+        { "ZW",           "ZW" },
+
+        { "Mozambique",   "MZ" },
+        { "MZ",           "MZ" },
+
+        { "Eswatini",     "SZ" },
+        { "Swaziland",    "SZ" },
+        { "SZ",           "SZ" },
+
+        { "Lesotho",      "LS" },
+        { "LS",           "LS" },
+    };
+
+    /// <summary>
+    /// Returns the ISO-2 country code for a country value coming from
+    /// the database or an inbound API request. If the value is already
+    /// ISO-2 it's returned as-is. If it's a recognised full name it's
+    /// mapped to ISO-2. If it's unrecognised, falls back to "ZA"
+    /// (the platform's default operating country).
+    /// </summary>
+    public static string ToIso2(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return "ZA";
+
+        var trimmed = raw.Trim();
+        return _map.TryGetValue(trimmed, out var iso2) ? iso2 : "ZA";
+    }
+}
+Edit GetRatesController.cs
+At the top of the file, add the using directive:
+csharpusing DelicateCouriers.ApiService.Features.Shipping;
+Then in the collection-address mapping (line 79):
+Find:
+csharp                Country = store.CollectionCountry ?? "ZA",
+Replace with:
+csharp                Country = CountryNormalizer.ToIso2(store.CollectionCountry),
+And in the delivery-address mapping (line 102):
+Find:
+csharp                Country = "ZA",
+Replace with:
+csharp                Country = CountryNormalizer.ToIso2(request.DeliveryAddress.Country),
+The second change is the more important one in some ways — the previous code was hard-coding "ZA" on the delivery side regardless of what the plugin sent. With this fix, the platform now respects what the plugin says, normalised to ISO-2. This will matter the moment Delicate Courier expands to cross-border deliveries.
+Optional but recommended: fix store 3's data in parallel
+Run this against the production database once you've redeployed the code:
+sql-- Audit first: see how many stores have non-ISO-2 country values stored.
+SELECT "StoreID", "StoreName", "CollectionCountry"
+FROM "Stores"
+WHERE "CollectionCountry" IS NOT NULL
+  AND length("CollectionCountry") > 2;
+
+-- Then fix in one go:
+UPDATE "Stores"
+SET "CollectionCountry" = 'ZA'
+WHERE "CollectionCountry" IN ('South Africa', 'RSA', 'south africa');

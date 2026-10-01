@@ -1,0 +1,59 @@
+2026-05-08T12:51:26Z info: Deployment: 33c7b27a-7eb0-4636-9bb1-5c59fadf87c8
+2026-05-08T12:51:26Z info: Build: 43339085-4766-4343-96c6-81229fe2fbc6
+2026-05-08T12:51:27Z info: Running Security Scan
+2026-05-08T12:51:48Z info: Security Scan Complete
+2026-05-08T12:51:53Z info: Installing packages
+2026-05-08T12:51:54Z info: Starting Build
+Welcome to .NET 8.0!
+---------------------
+SDK Version: 8.0.416
+
+Telemetry
+---------
+The .NET tools collect usage data in order to help us improve your experience. It is collected by Microsoft and shared with the community. You can opt-out of telemetry by setting the DOTNET_CLI_TELEMETRY_OPTOUT environment variable to '1' or 'true' using your favorite shell.
+
+Read more about .NET CLI Tools telemetry: https://aka.ms/dotnet-cli-telemetry
+
+An issue was encountered verifying workloads. For more information, run "dotnet workload update".
+
+  Determining projects to restore...
+
+/home/runner/workspace/DelicateCouriers/DelicateCouriers.ServiceDefaults/DelicateCouriers.ServiceDefaults.csproj : warning NU1902: Package 'OpenTelemetry.Exporter.OpenTelemetryProtocol' 1.9.0 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-4625-4j76-fww9 [/home/runner/workspace/DelicateCouriers/DelicateCouriers.ApiService/DelicateCouriers.ApiService.csproj]
+
+  Restored /home/runner/workspace/DelicateCouriers/DelicateCouriers.ServiceDefaults/DelicateCouriers.ServiceDefaults.csproj (in 2.89 sec).
+
+  Restored /home/runner/workspace/DelicateCouriers/DelicateCouriers.ApiService/DelicateCouriers.ApiService.csproj (in 4.14 sec).
+
+/home/runner/workspace/DelicateCouriers/DelicateCouriers.ServiceDefaults/DelicateCouriers.ServiceDefaults.csproj : warning NU1902: Package 'OpenTelemetry.Exporter.OpenTelemetryProtocol' 1.9.0 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-4625-4j76-fww9
+
+  DelicateCouriers.Domain -> /home/runner/workspace/DelicateCouriers/DelicateCouriers.Domain/bin/Release/net8.0/DelicateCouriers.Domain.dll
+
+  DelicateCouriers.Contracts -> /home/runner/workspace/DelicateCouriers/DelicateCouriers.Contracts/bin/Release/net8.0/DelicateCouriers.Contracts.dll
+
+  DelicateCouriers.ServiceDefaults -> /home/runner/workspace/DelicateCouriers/DelicateCouriers.ServiceDefaults/bin/Release/net8.0/DelicateCouriers.ServiceDefaults.dll
+
+s.ApiService.csproj]
+
+/home/runner/workspace/DelicateCouriers/DelicateCouriers.ApiService/Features/Testing/TestShiplogicController.cs(56,24): warning CS8601: Possible null reference assignment. [/home/runner/workspace/DelicateCouriers/DelicateCouriers.ApiService/DelicateCouriers.ApiService.csproj]
+/home/runner/workspace/DelicateCouriers/DelicateCouriers.ApiService/Features/Testing/TestShiplogicController.cs(57,30): warning CS8601: Possible null reference assignment. [/home/runner/workspace/DelicateCouriers/DelicateCouriers.ApiService/DelicateCouriers.ApiService.csproj]
+/home/runner/workspace/DelicateCouriers/DelicateCouriers.ApiService/Features/Shipments/ShipmentsController.cs(84,38): warning CS1998: This async method lacks 'await' operators and will run synchronously. Consider using the 'await' operator to await non-blocking API calls, or 'await Task.Run(...)' to do CPU-bound work on a background thread. [/home/runner/workspace/DelicateCouriers/DelicateCouriers.ApiService/DelicateCouriers.ApiService.csproj]
+/home/runner/workspace/DelicateCouriers/DelicateCouriers.ApiService/Features/Orders/OrderToShipmentMapper.cs(321,20): warning CS8601: Possible null reference assignment. [/home/runner/workspace/DelicateCouriers/DelicateCouriers.ApiService/DelicateCouriers.ApiService.csproj]
+
+  DelicateCouriers.ApiService -> /home/runner/workspace/DelicateCouriers/DelicateCouriers.ApiService/bin/Release/net8.0/DelicateCouriers.ApiService.dll
+
+  DelicateCouriers.ApiService -> /home/runner/workspace/publish/
+
+2026-05-08T12:52:11Z info: Pushing pid1 binary layer...
+2026-05-08T12:52:13Z info: Created pid1 binary layer
+2026-05-08T12:52:14Z info: Pushing Repl layer...
+2026-05-08T12:52:14Z info: Pushing hosting layer...
+2026-05-08T12:52:14Z info: Nix layers for this Repl are uncached.
+2026-05-08T12:52:14Z info: Pushing nix-0 layer...
+2026-05-08T12:52:14Z info: Created hosting layer
+2026-05-08T12:53:04Z info: Created Repl layer
+2026-05-08T12:53:36Z info: Created nix-0 layer
+2026-05-08T12:53:36Z info: uploading image for cached layer
+2026-05-08T12:53:37Z info: pushed cache image manifest
+2026-05-08T12:53:37Z info: pushed cache soci index manifest
+2026-05-08T12:53:37Z info: uploading cached layer
+2026-05-08T12:53:37Z info: successfully uploaded cached layer

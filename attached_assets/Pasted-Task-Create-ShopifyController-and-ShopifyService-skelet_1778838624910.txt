@@ -1,0 +1,71 @@
+Task: Create ShopifyController and ShopifyService skeleton mirroring the WooCommerce structure. Do not implement business logic yet. Only create the skeleton with empty methods that return placeholders.
+
+Step 6.1 - Create new folder Features/Shopify if it does not exist.
+
+Step 6.2 - Create interface IShopifyService.cs with these method signatures (mirror IWooCommerceService):
+
+Task<ShopifyConnectionResponse> TestConnectionAsync(int storeId)
+
+Task<ShopifyOrdersResponse> FetchOrdersAsync(FetchOrdersRequest request)
+
+Task<ShopifyOrderDto> GetOrderAsync(int storeId, string shopifyOrderId)
+
+Task<bool> UpdateOrderStatusAsync(int storeId, string shopifyOrderId, string status)
+
+Task<bool> AddTrackingInfoAsync(int storeId, string shopifyOrderId, string trackingNumber, string courierName)
+
+Task<List<ShopifyOrderDto>> FetchAllOrdersAsync(int storeId, string? status, DateTime? after, DateTime? before, int maxOrders = 10000)
+
+Step 6.3 - Create ShopifyService.cs implementing IShopifyService. All methods should:
+
+Log that they are called
+
+Return empty/default responses (e.g., IsConnected = false, empty list, null, or false)
+
+Not call any real Shopify API yet
+
+Use IHttpClientFactory but do not implement authentication yet
+
+Step 6.4 - Create ShopifyController.cs with same endpoints as WooCommerceController:
+
+GET test-connection/{storeId}
+
+POST fetch-orders
+
+GET get-order/{storeId}/{shopifyOrderId}
+
+PUT update-order-status/{storeId}/{shopifyOrderId}
+
+POST add-tracking-info/{storeId}/{shopifyOrderId}
+
+POST fetch-all-orders
+
+Step 6.5 - Each controller method should:
+
+Inject IShopifyService and ILogger
+
+Call the corresponding service method
+
+Return Ok() or BadRequest() based on result
+
+Have try/catch for 500 errors
+
+Step 6.6 - Create DTOs in ShopifyDTOs.cs mirroring WooCommerceDTOs:
+
+ShopifyConnectionResponse
+
+ShopifyOrdersResponse
+
+ShopifyOrderDto
+
+FetchOrdersRequest (reuse same properties as WooCommerce version)
+
+Step 6.7 - Register in Program.cs:
+
+builder.Services.AddScoped<IShopifyService, ShopifyService>()
+
+builder.Services.AddHttpClient<IShopifyService, ShopifyService>()
+
+Do not modify: WooCommerceService, WooCommerceController, StoresController, or any existing files outside Features/Shopify.
+
+After completing, confirm: "Step 6 done. ShopifyController and ShopifyService skeleton created. No real API calls implemented yet."

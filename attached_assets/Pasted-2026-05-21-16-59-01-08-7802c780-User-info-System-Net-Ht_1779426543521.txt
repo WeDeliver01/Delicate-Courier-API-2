@@ -1,0 +1,98 @@
+2026-05-21 16:59:01.08
+7802c780
+User
+info: System.Net.Http.HttpClient.IShiplogicService.ClientHandler[100]
+2026-05-21 16:59:01.85
+7802c780
+User
+Received HTTP response headers after 769.5613ms - 500
+2026-05-21 16:59:01.85
+7802c780
+User
+info: System.Net.Http.HttpClient.IShiplogicService.ClientHandler[101]
+2026-05-21 16:59:01.85
+7802c780
+User
+Retry 1 after 2s due to: InternalServerError
+2026-05-21 16:59:03.85
+7802c780
+User
+info: System.Net.Http.HttpClient.IShiplogicService.ClientHandler[100]
+2026-05-21 16:59:03.85
+7802c780
+User
+Sending HTTP request POST https://api.shiplogic.com/shipments
+2026-05-21 16:59:04.55
+7802c780
+User
+Received HTTP response headers after 696.9156ms - 500
+2026-05-21 16:59:04.55
+7802c780
+User
+info: System.Net.Http.HttpClient.IShiplogicService.ClientHandler[101]
+2026-05-21 16:59:04.55
+7802c780
+User
+Circuit breaker opened for 30s due to: InternalServerError
+2026-05-21 16:59:04.55
+7802c780
+User
+Retry 2 after 4s due to: InternalServerError
+2026-05-21 16:59:08.56
+7802c780
+User
+at Microsoft.Extensions.ServiceDiscovery.Http.ResolvingHttpDelegatingHandler.SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) in /_/src/Microsoft.Extensions.ServiceDiscovery/Http/ResolvingHttpDelegatingHandler.cs:line 53
+2026-05-21 16:59:08.56
+7802c780
+User
+at Microsoft.Extensions.Http.PolicyHttpMessageHandler.SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+2026-05-21 16:59:08.56
+7802c780
+User
+at Microsoft.Extensions.Http.PolicyHttpMessageHandler.SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+2026-05-21 16:59:08.56
+7802c780
+User
+Execution attempt. Source: '-standard//Standard-Retry', Operation Key: '', Result: 'The circuit is now open and is not allowing calls.', Handled: 'False', Attempt: '1', Execution Time: 7475.6351ms
+2026-05-21 16:59:08.56
+7802c780
+User
+info: Polly[3]
+2026-05-21 16:59:08.56
+7802c780
+User
+at Polly.CircuitBreaker.CircuitStateController`1.OnActionPreExecute()
+2026-05-21 16:59:08.56
+7802c780
+User
+at Polly.AsyncPolicy`1.ExecuteAsync(Func`3 action, Context context, CancellationToken cancellationToken, Boolean continueOnCapturedContext)
+2026-05-21 16:59:08.57
+7802c780
+User
+=== UNEXPECTED EXCEPTION ===
+2026-05-21 16:59:08.57
+7802c780
+User
+fail: DelicateCouriers.Features.Shiplogic.ShiplogicService[0]
+2026-05-21 16:59:08.57
+7802c780
+User
+at Microsoft.Extensions.Http.PolicyHttpMessageHandler.SendCoreAsync(HttpRequestMessage request, Context context, CancellationToken cancellationToken)
+2026-05-21 16:59:08.57
+7802c780
+User
+at Polly.CircuitBreaker.CircuitStateController`1.OnActionPreExecute()
+2026-05-21 16:59:08.57
+7802c780
+User
+at Polly.CircuitBreaker.AsyncCircuitBreakerEngine.ImplementationAsync[TResult](Func`3 action, Context context, CancellationToken cancellationToken, Boolean continueOnCapturedContext, ExceptionPredicates shouldHandleExceptionPredicates, ResultPredicates`1 shouldHandleResultPredicates, ICircuitController`1 breakerController)
+2026-05-21 16:59:08.57
+7802c780
+User
+at Microsoft.Extensions.Http.PolicyHttpMessageHandler.SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+2026-05-21 16:59:08.57
+7802c780
+User
+Polly.CircuitBreaker.BrokenCircuitException`1[System.Net.Http.HttpResponseMessage]: The circuit is now open and is not allowing calls.
+
+20

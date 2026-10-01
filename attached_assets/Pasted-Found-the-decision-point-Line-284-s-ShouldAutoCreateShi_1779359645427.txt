@@ -1,0 +1,40 @@
+Found the decision point. Line 284's ShouldAutoCreateShipment is the gate that determines whether the platform queues a Shiplogic booking. Right now it only checks status. It needs to also check whether the order is collect.
+Now I have everything I need. Let me lay out both halves precisely.
+Part 1 — Platform-side change (apply and deploy first)
+File: DelicateCouriers/DelicateCouriers.ApiService/Features/WooCommerce/DTOs/PluginWebhookPayload.cs
+Add a new field to the DTO so the platform can accept the fulfillment flag from the plugin:
+csharp        [JsonPropertyName("occasion")]
+        public string? Occasion { get; set; }
+
+        // ─── Fulfillment ──────────────────────────────────────────────────
+        // 'delivery' (default) | 'collect' | 'special_trip'.
+        // When 'collect', the customer picks up at the merchant and the
+        // platform must NOT create a Shiplogic shipment. When omitted
+        // (older plugin versions, third-party integrations), defaults
+        // to 'delivery' to preserve previous behaviour.
+        [JsonPropertyName("fulfillment_type")]
+        public string? FulfillmentType { get; set; }
+    }
+File: DelicateCouriers/DelicateCouriers.ApiService/Features/WooCommerce/PluginWebhookService.cs
+Update ShouldAutoCreateShipment to also consider fulfillment type. The cleanest way is to change its signature to take the whole payload, then check both status and fulfillment:
+csharp        private bool ShouldAutoCreateShipment(PluginWebhookPayload payload)
+        {
+            // Don't book a courier shipment for orders the customer is
+            // collecting in person — there's no delivery to schedule.
+            // 'special_trip' is also collection-flow (no scheduled route),
+            // but is intentionally still handled by Shiplogic as an ad-hoc
+            // booking, so we treat it as bookable.
+            if (string.Equals(payload.FulfillmentType, "collect", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogInformation(
+                    "Skipping Shiplogic shipment creation for collect order. WooOrderID: {WooOrderId}",
+                    payload.WooOrderId);
+                return false;
+            }
+
+            var paidStatuses = new[] { "processing", "completed" };
+            return paidStatuses.Contains(payload.Status?.ToLower());
+        }
+Then update the two call sites at lines 75 and 126 to pass the whole payload instead of just payload.Status:
+csharp                if (ShouldAutoCreateShipment(payload))   // was: payload.Status
+That's the entire platform-side change. Strictly additive — older plugin versions that don't send fulfillment_type are unaffected (the field defaults to null, the guard short-circuits to the old behaviour, every existing merchant keeps working exactly as before).

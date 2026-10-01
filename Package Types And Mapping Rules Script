@@ -1,0 +1,69 @@
+-- =============================================
+-- Delicate Couriers Platform
+-- Seed Script: Package Types & Mapping Rules
+-- =============================================
+-- Usage: Replace {STORE_ID} with your actual StoreID
+-- Find it with: SELECT "StoreID", "StoreName" FROM "Stores";
+-- =============================================
+
+-- Clean existing data (optional - uncomment if re-seeding)
+-- DELETE FROM "PackageMappingRules" WHERE "PackageTypeID" IN (SELECT "PackageTypeID" FROM "PackageTypes" WHERE "StoreID" = {STORE_ID});
+-- DELETE FROM "PackageTypes" WHERE "StoreID" = {STORE_ID};
+
+-- =============================================
+-- 1. Insert Package Types
+-- =============================================
+INSERT INTO "PackageTypes" ("StoreID", "Name", "Description", "LengthCm", "WidthCm", "HeightCm", "DefaultWeightKg", "MaxWeightKg", "IsDefault", "IsActive", "SortOrder", "CreatedOn", "CreatedBy")
+VALUES
+    ({STORE_ID}, 'Xsmall Cake Box',          'Extra small cake box',          20, 20, 28, 1,  NULL, FALSE, TRUE, 1,  NOW(), 'System'),
+    ({STORE_ID}, 'Custom Dessert Box',        'Custom dessert packaging',      30, 30, 20, 20, NULL, TRUE,  TRUE, 2,  NOW(), 'System'),
+    ({STORE_ID}, 'Small Cake Box',            'Small cake box',                25, 25, 45, 2,  NULL, FALSE, TRUE, 3,  NOW(), 'System'),
+    ({STORE_ID}, 'Medium Cake Box',           'Medium cake box',               30, 30, 47, 3,  NULL, FALSE, TRUE, 4,  NOW(), 'System'),
+    ({STORE_ID}, 'Medium Wedding Cake Box',   'Medium wedding cake box',       35, 35, 40, 3,  NULL, FALSE, TRUE, 5,  NOW(), 'System'),
+    ({STORE_ID}, 'Deli Cake Box',             'Deli cake box',                 23, 23, 15, 1,  NULL, FALSE, TRUE, 6,  NOW(), 'System'),
+    ({STORE_ID}, 'Medium Cheesecake Box',     'Medium cheesecake box',         20, 20, 8,  2,  NULL, FALSE, TRUE, 7,  NOW(), 'System'),
+    ({STORE_ID}, 'Large Cheesecake Box',      'Large cheesecake box',          25, 25, 10, 3,  NULL, FALSE, TRUE, 8,  NOW(), 'System'),
+    ({STORE_ID}, 'Cookie Box of 6',           'Cookie box for 6 cookies',      24, 16, 11, 2,  NULL, FALSE, TRUE, 9,  NOW(), 'System'),
+    ({STORE_ID}, 'Cookie Box of 12',          'Cookie box for 12 cookies',     24, 24, 12, 4,  NULL, FALSE, TRUE, 10, NOW(), 'System'),
+    ({STORE_ID}, 'Cake Tasting Box',          'Cake tasting box',              16, 12, 3,  1,  NULL, FALSE, TRUE, 11, NOW(), 'System'),
+    ({STORE_ID}, 'Lunchbox Cake Box',         'Lunchbox cake box',             12, 12, 7,  1,  NULL, FALSE, TRUE, 12, NOW(), 'System');
+
+-- =============================================
+-- 2. Insert Mapping Rules
+-- Maps product keywords to package types for auto-selection
+-- =============================================
+INSERT INTO "PackageMappingRules" ("PackageTypeID", "Keyword", "MatchType", "Priority", "IsActive", "CreatedOn", "CreatedBy")
+SELECT pt."PackageTypeID", rules."Keyword", 'Contains', rules."Priority", TRUE, NOW(), 'System'
+FROM "PackageTypes" pt
+JOIN (VALUES
+    ('Medium Cake Box',     'Single Tier Cake', 10),
+    ('Medium Cake Box',     '2 Tier Cake',      10),
+    ('Medium Cake Box',     '3 Tier Cake',      10),
+    ('Small Cake Box',      'Cupcake',           20),
+    ('Cookie Box of 6',     'Brownie',           30),
+    ('Cookie Box of 6',     'Macaron',           30),
+    ('Medium Cheesecake Box','Cheesecake',       40),
+    ('Deli Cake Box',       'Deli Cake',         50),
+    ('Lunchbox Cake Box',   'Lunchbox',          60),
+    ('Cake Tasting Box',    'Cake Tasting',      70),
+    ('Custom Dessert Box',  'Platter',           80),
+    ('Cookie Box of 6',     'Pastry',            90),
+    ('Cookie Box of 6',     'Pasteries',         90),
+    ('Cookie Box of 6',     'Doughnut',          100)
+) AS rules("PackageName", "Keyword", "Priority")
+ON pt."Name" = rules."PackageName"
+WHERE pt."StoreID" = {STORE_ID};
+
+-- =============================================
+-- 3. Verify
+-- =============================================
+SELECT pt."Name", pt."LengthCm", pt."WidthCm", pt."HeightCm", pt."DefaultWeightKg", pt."IsDefault"
+FROM "PackageTypes" pt
+WHERE pt."StoreID" = {STORE_ID}
+ORDER BY pt."SortOrder";
+
+SELECT pt."Name" AS "PackageType", pmr."Keyword", pmr."Priority"
+FROM "PackageMappingRules" pmr
+JOIN "PackageTypes" pt ON pmr."PackageTypeID" = pt."PackageTypeID"
+WHERE pt."StoreID" = {STORE_ID}
+ORDER BY pmr."Priority";

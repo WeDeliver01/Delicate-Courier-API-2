@@ -1,0 +1,14 @@
+---
+name: Shiplogic booking reliability
+description: Timeout and geocoding pitfalls when creating Shiplogic shipments
+---
+
+- **Rule:** Always attach our own geocoded lat/lng to BOTH collection and delivery addresses in Shiplogic payloads, and keep the Shiplogic HttpClient timeout generous (100s).
+- **Why:** Shiplogic geocodes addresses server-side and synchronously during shipment creation. Vague ZA addresses (e.g. unnumbered plot/farm descriptions) can stall the create call past 30s; the HttpClient.Timeout spans the entire Polly retry pipeline, so a 30s timeout produced repeated "Request timed out or was cancelled" booking failures that burned all Hangfire retries. A rates probe on the same address can still return in ~1s, so rates working does NOT prove booking will.
+- **How to apply:** Booking flow uses the same cached IGeocoder pattern as the rates flow (best-effort — booking proceeds without coords if geocode fails). If a specific order keeps timing out while others book fine, suspect its delivery address (vague/unstructured).
+- **Cancel endpoint:** the working cancel call is `POST /v2/shipments/cancel` with body `{"tracking_reference":"<short ref, e.g. RPLNWM>"}`. The path-style `POST /v2/shipments/{id}/cancel` returns 404 "Unhandled resource path" (verified live 2026-07-09) — code using it silently failed every cancel. Success returns 200 with the shipment payload showing `"status":"cancelled"`.
+- **Collection points disguised as delivery:** some Woo stores sell paid collection points as `flat_rate` methods whose only "collect" signal is the merchant-written title ("Collect from …"); the plugin heuristic checks only the method id so those arrive tagged `delivery`. Backend must verify `shipping_lines` via the store's Woo REST API and keyword-gate on collect/pickup in id OR title, failing safe (no booking + review event) when the lookup fails.
+- **No-coverage addresses cannot be force-booked as STD:** with lat/lng attached, Shiplogic answers create in ~1s with 400 "no service levels available" for an out-of-coverage address; WITHOUT coords the same create stalls past 30s and burns the timeout instead. So a fast, definitive coverage probe = create with coords. Out-of-coverage orders can ONLY ship as SPX ad-hoc trips.
+- **SPX needs an account permission:** shipment create with `service_level_code=SPX` returns 400 "You do not have permission to create rates for special trips" until Shiplogic enables special trips on the account behind the bearer token (verified live 2026-08-13). No payload change works around it.
+- **Hangfire trick:** to re-trigger a scheduled retry immediately: `UPDATE hangfire.set SET score=extract(epoch from now()) WHERE key='schedule' AND value='<jobid>'`.
+- **Plugin versions:** when bumping a WooCommerce plugin header `Version:`, also bump the `DCP_VERSION` constant in the same file — they drift otherwise and telemetry/User-Agent misreport.

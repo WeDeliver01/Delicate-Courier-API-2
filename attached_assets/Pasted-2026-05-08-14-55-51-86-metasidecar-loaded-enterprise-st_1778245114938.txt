@@ -1,0 +1,46 @@
+2026-05-08 14:55:51.86
+metasidecar: loaded enterprise status from environment is_enterprise=false
+2026-05-08 14:55:51.87
+forwarding local port 5000 to external port 80 (mapped as 1104)
+2026-05-08 14:56:28.03
+System.Net.Sockets.SocketException (00000001, 11): Resource temporarily unavailable
+2026-05-08 14:56:28.03
+at Npgsql.EntityFrameworkCore.PostgreSQL.Storage.Internal.NpgsqlDatabaseCreator.Exists()
+2026-05-08 14:56:28.03
+at Microsoft.EntityFrameworkCore.Storage.RelationalConnection.OpenDbConnection(Boolean errorsExpected)
+2026-05-08 14:56:28.03
+at Npgsql.EntityFrameworkCore.PostgreSQL.Storage.Internal.NpgsqlDatabaseCreator.Exists(Boolean async, CancellationToken cancellationToken)
+2026-05-08 14:56:28.03
+at Npgsql.Internal.NpgsqlConnector.RawOpen(SslMode sslMode, NpgsqlTimeout timeout, Boolean async, CancellationToken cancellationToken, Boolean isFirstAttempt)
+2026-05-08 14:56:28.03
+at Npgsql.UnpooledDataSource.Get(NpgsqlConnection conn, NpgsqlTimeout timeout, Boolean async, CancellationToken cancellationToken)
+2026-05-08 14:56:28.03
+at Npgsql.Internal.NpgsqlConnector.<Open>g__OpenCore|213_1(NpgsqlConnector conn, SslMode sslMode, NpgsqlTimeout timeout, Boolean async, CancellationToken cancellationToken, Boolean isFirstAttempt)
+2026-05-08 14:56:28.03
+at Npgsql.EntityFrameworkCore.PostgreSQL.Storage.Internal.NpgsqlDatabaseCreator.Exists(Boolean async, CancellationToken cancellationToken)
+2026-05-08 14:56:28.03
+at Npgsql.Internal.NpgsqlConnector.Connect(NpgsqlTimeout timeout)
+2026-05-08 14:56:28.03
+at Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.Migrate(DatabaseFacade databaseFacade)
+2026-05-08 14:56:28.03
+at System.Net.Dns.GetHostAddresses(String hostNameOrAddress, AddressFamily family)
+2026-05-08 14:56:28.03
+at System.Net.Dns.GetHostEntryOrAddressesCore(String hostName, Boolean justAddresses, AddressFamily addressFamily, Nullable`1 startingTimestamp)
+2026-05-08 14:56:28.03
+at Microsoft.EntityFrameworkCore.Migrations.HistoryRepository.GetAppliedMigrations()
+2026-05-08 14:56:28.03
+at Npgsql.NpgsqlConnection.Open()
+2026-05-08 14:56:28.03
+at Npgsql.Internal.NpgsqlConnector.Open(NpgsqlTimeout timeout, Boolean async, CancellationToken cancellationToken)
+2026-05-08 14:56:28.03
+at Npgsql.EntityFrameworkCore.PostgreSQL.Migrations.Internal.NpgsqlMigrator.Migrate(String targetMigration)
+2026-05-08 14:56:28.03
+at Npgsql.NpgsqlConnection.<Open>g__OpenAsync|42_0(Boolean async, CancellationToken cancellationToken)
+2026-05-08 14:56:28.03
+at Microsoft.EntityFrameworkCore.Storage.RelationalConnection.OpenInternal(Boolean errorsExpected)
+2026-05-08 14:56:28.03
+at Microsoft.EntityFrameworkCore.Migrations.HistoryRepository.Exists()
+2026-05-08 14:56:28.03
+at Microsoft.EntityFrameworkCore.Storage.RelationalConnection.Open(Boolean errorsExpected)
+2026-05-08 14:56:51.86
+a port configuration was specified but the required port was never opened, expected port 5000

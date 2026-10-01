@@ -1,0 +1,63 @@
+/*
+ * Delicate API Adapter — Checkout stylesheet.
+ *
+ * Scoped to .daa-date-picker-wrap so we don't accidentally style anything
+ * else on the page. Designed to blend with Divi's default checkout form
+ * (font inherits, no hard colors), and lean toward the existing WC form-row
+ * cadence the bakery site already uses.
+ */
+
+.daa-date-picker-wrap {
+    margin: 0 0 24px;
+    padding: 12px 16px;
+    background: #fafafa;
+    border: 1px solid #e5e5e5;
+    border-radius: 4px;
+}
+
+.daa-date-picker-wrap .daa-date-picker-row {
+    margin: 0;
+}
+
+.daa-date-picker-label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 6px;
+    font-size: inherit;
+    line-height: 1.4;
+}
+
+.daa-date-picker-label .required {
+    color: #b00020;
+    text-decoration: none;
+    border: 0;
+    margin-left: 2px;
+}
+
+.daa-date-picker-input,
+.daa-date-picker-wrap input.flatpickr-input,
+.daa-date-picker-wrap input.flatpickr-alt-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    line-height: 1.4;
+    font-size: inherit;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.daa-date-picker-input:focus,
+.daa-date-picker-wrap input.flatpickr-alt-input:focus {
+    outline: none;
+    border-color: #2271b1;
+    box-shadow: 0 0 0 2px rgba(34, 113, 177, 0.2);
+}
+
+/* The hidden native input that flatpickr keeps around for form submission
+ * — never want it to show, regardless of theme stylesheet ordering. */
+.daa-date-picker-wrap input.flatpickr-input.flatpickr-mobile,
+.daa-date-picker-wrap input.flatpickr-input[type="hidden"] {
+    display: none !important;
+}

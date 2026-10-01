@@ -1,0 +1,66 @@
+Diagnosis, finalised
+The booking is definitively tied to this exact order (same WooOrderID, same timestamp). The plugin correctly sent fulfillment_type: "collect". The platform booked anyway. The bug is in the platform's ShouldAutoCreateShipment logic, not in the plugin.
+Since you don't know whether the platform-side C# patch was applied, the safest assumption is that it wasn't (since the behaviour matches "patch not deployed"). Even if it was applied, we now know there's also a separate puzzle — the order status is pending, and the existing ShouldAutoCreateShipment only auto-books on processing/completed. So a Shiplogic booking firing on a pending order suggests one of:
+
+The status condition was loosened at some point (maybe to handle Honey Bee Baker's "Paid in Store" gateway differently), so pending now auto-books too.
+There's a second booking path on the platform that I haven't seen — a Hangfire job, an order-import worker, or admin-button trigger.
+Something else changes the order status to processing shortly after creation, and that triggers ShouldAutoCreateShipment via an order-status hook.
+
+Whichever of those is true, the fix is the same: the collect check has to happen wherever Shiplogic booking is decided. Not just in the one method I patched earlier. The check needs to be near the actual Shiplogic.CreateShipment call so it can't be bypassed by another code path.
+Concrete fix on the platform side — two layers
+I want this fix to be defensive enough that it works regardless of which code path triggered the booking. Two changes:
+Layer 1 — Update ShouldAutoCreateShipment to read fulfillment
+Same as before. In PluginWebhookService.cs line ~284:
+csharpprivate bool ShouldAutoCreateShipment(PluginWebhookPayload payload)
+{
+    // Customer is collecting in person — no courier shipment needed.
+    if (string.Equals(payload.FulfillmentType, "collect", StringComparison.OrdinalIgnoreCase))
+    {
+        _logger.LogInformation(
+            "Skipping Shiplogic shipment creation for collect order. WooOrderID: {WooOrderId}",
+            payload.WooOrderId);
+        return false;
+    }
+
+    var paidStatuses = new[] { "processing", "completed" };
+    return paidStatuses.Contains(payload.Status?.ToLower());
+}
+Update both call sites (lines 75 and 126) to pass the whole payload:
+csharpif (ShouldAutoCreateShipment(payload))     // was: payload.Status
+Layer 2 — Guard at the actual Shiplogic-call site
+This is the belt-and-braces part. Find ShipmentOrchestrationService.CreateShipmentForOrderAsync (referenced from line 82) and add a guard at the very top:
+csharppublic async Task CreateShipmentForOrderAsync(int orderId)
+{
+    var order = await _context.Orders
+        .AsNoTracking()
+        .FirstOrDefaultAsync(o => o.OrderID == orderId);
+
+    if (order == null)
+    {
+        _logger.LogWarning("CreateShipmentForOrderAsync called for missing OrderID {OrderId}", orderId);
+        return;
+    }
+
+    // Collect orders must never reach Shiplogic, regardless of which code
+    // path queued the booking — webhook, manual admin button, retry queue.
+    // Defensive guard at the call site so adding new triggers in future
+    // can't accidentally bypass the upstream check.
+    if (string.Equals(order.FulfillmentType, "collect", StringComparison.OrdinalIgnoreCase))
+    {
+        _logger.LogInformation(
+            "Refusing to create Shiplogic shipment for collect order. OrderID: {OrderId}, WooOrderID: {WooOrderId}",
+            order.OrderID, order.WooOrderID);
+        return;
+    }
+
+    // … existing booking logic continues here
+}
+For this guard to work, the FulfillmentType value has to be persisted on the Orders table. Right now it's only on the inbound DTO. Two ways to handle that:
+Quick fix: add a FulfillmentType column to the Orders entity, write it during ProcessPluginOrderAsync. One EF migration.
+Even quicker stopgap: the guard reads from a different source — e.g., it queries the WC order via the merchant's REST credentials and reads _dtsc_delivery_method. Slower but no migration. I'd reject this — for a guard that runs synchronously inside a Hangfire job, a database column is the right answer.
+What to do right now
+The pragmatic sequence:
+
+Confirm with your developer whether ShouldAutoCreateShipment was patched. If not, apply Layer 1 and redeploy. That alone should fix new collect orders going through the webhook.
+Add Layer 2 in the next deploy cycle. Doesn't have to be today, but should be done before this platform takes serious traffic from collect-heavy merchants.
+Investigate why the pending-status order booked anyway. The Layer 1 patch will fix it, but understanding which code path booked the pending order tells you whether there are other booking-triggering paths to harden.

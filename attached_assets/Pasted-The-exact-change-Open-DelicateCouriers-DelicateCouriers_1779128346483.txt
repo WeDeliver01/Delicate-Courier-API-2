@@ -1,0 +1,50 @@
+The exact change
+Open DelicateCouriers/DelicateCouriers.ApiService/Features/Shiplogic/ShiplogicService.cs.
+Find this block (line 388 through 398):
+csharp            response.EnsureSuccessStatusCode();
+
+            var rates = await response.Content.ReadFromJsonAsync<RateResponseDto>(cancellationToken);
+            if (rates == null)
+            {
+                _logger.LogError("Failed to deserialize Shiplogic rates from response body: {ResponseBody}", responseBody);
+                throw new InvalidOperationException("Failed to deserialize rates from Shiplogic");
+            }
+
+            _logger.LogInformation("Successfully retrieved {Count} rates from Shiplogic", rates.Rates.Count);
+            return rates;
+Replace it with this:
+csharp            response.EnsureSuccessStatusCode();
+
+            var rates = await response.Content.ReadFromJsonAsync<RateResponseDto>(cancellationToken);
+            if (rates == null)
+            {
+                _logger.LogError("Failed to deserialize Shiplogic rates from response body: {ResponseBody}", responseBody);
+                throw new InvalidOperationException("Failed to deserialize rates from Shiplogic");
+            }
+
+            // Shiplogic returns "rates": null (not an empty array) when no
+            // carriers serve the requested route — e.g. when the configured
+            // provider doesn't cover the origin/destination, or when the
+            // bearer token is valid but not authorised for the requested
+            // account/provider. Normalize to an empty list so callers can
+            // treat "no rates" uniformly without null-checking everywhere.
+            if (rates.Rates == null)
+            {
+                _logger.LogWarning(
+                    "Shiplogic returned HTTP 200 but rates:null. " +
+                    "Likely cause: provider not configured for this route, or bearer token lacks permission. " +
+                    "Response body: {ResponseBody}",
+                    responseBody);
+                rates.Rates = new List<RateDto>();
+            }
+
+            _logger.LogInformation("Successfully retrieved {Count} rates from Shiplogic", rates.Rates.Count);
+            return rates;
+What this does
+
+No more NRE. If rates.Rates is null, we replace it with an empty list before the .Count call.
+Surfaces the real diagnosis in logs. When Shiplogic returns rates: null, you now get a warning that says exactly what it means and includes the full response body. Next time you check logs you'll see this line and know immediately whether it's a coverage issue or a credentials issue.
+The controller upstream still gets a valid RateResponseDto — just with zero rates inside. It can then return success: true, rates: [] cleanly to the plugin, which the plugin already knows how to handle.
+
+One thing to double-check before you compile
+Make sure RateDto is the actual element type of the Rates list. 

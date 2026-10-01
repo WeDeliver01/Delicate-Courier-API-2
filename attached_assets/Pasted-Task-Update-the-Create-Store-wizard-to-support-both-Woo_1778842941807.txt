@@ -1,0 +1,77 @@
+Task: Update the Create Store wizard to support both WooCommerce and Shopify. Do not break existing WooCommerce functionality.
+
+File: app/stores/create/page.tsx (or wherever the StoreWizardForm component lives)
+
+Step 8.1 - Add Platform to formData state
+
+Add platform: 'woocommerce' to the formData useState (default to 'woocommerce').
+Add shopifyStoreUrl: '', shopifyAccessToken: '', shopifyWebhookSecret: '' to formData.
+
+Step 8.2 - Update Step 1 (Basic Info)
+
+Remove the hardcoded wooCommerceURL field from Step 1
+
+Add a Platform dropdown after Store Name:
+
+Options: "WooCommerce" (value="woocommerce") and "Shopify" (value="shopify")
+
+Default to "woocommerce"
+
+Below the Platform dropdown, add a conditional URL field:
+
+If platform === "woocommerce" → show "WooCommerce URL" input (bind to wooCommerceURL)
+
+If platform === "shopify" → show "Shopify Store URL" input (bind to shopifyStoreUrl)
+
+Step 8.3 - Update Step 2 Title
+
+Change the STEPS array or the displayed title: When platform === "woocommerce" show "WooCommerce", when platform === "shopify" show "Shopify".
+
+Step 8.4 - Update Step 2 Content (Conditional)
+
+If platform === "woocommerce":
+
+Show existing Woo fields (Consumer Key, Consumer Secret, Webhook Secret)
+
+Keep all existing validation for these fields
+
+If platform === "shopify":
+
+Show new Shopify fields:
+
+Shopify Access Token (required, password field with show/hide)
+
+Shopify Webhook Secret (required, password field with show/hide)
+
+Do NOT show Woo fields
+
+Step 8.5 - Update validateStep function
+
+Case 2 validation:
+
+If platform === "woocommerce": require wooConsumerKey, wooConsumerSecret, webhookSecret
+
+If platform === "shopify": require shopifyAccessToken, shopifyWebhookSecret
+
+(wooCommerceURL/shopifyStoreUrl already validated in Step 1)
+
+Step 8.6 - Update handleSubmit function
+
+When building storeData:
+
+Always include platform
+
+If platform === "woocommerce": include wooCommerceURL, wooConsumerKey, wooConsumerSecret, webhookSecret
+
+If platform === "shopify": include shopifyStoreUrl, shopifyAccessToken, shopifyWebhookSecret
+
+Set the opposite platform's fields to null (or omit them)
+
+Step 8.7 - Keep everything else unchanged
+
+Do not modify: Steps 3-6, any other UI components, any backend files, any API calls other than the storeData object.
+
+After completing, confirm: "Step 8 done. Create Store wizard now supports both WooCommerce and Shopify."
+
+Is this prompt good? Yes or No. If No, tell me what to change.
+

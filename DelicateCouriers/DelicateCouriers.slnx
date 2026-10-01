@@ -1,0 +1,9 @@
+<Solution>
+  <Project Path="DelicateCouriers.ApiService/DelicateCouriers.ApiService.csproj" />
+  <Project Path="DelicateCouriers.AppHost/DelicateCouriers.AppHost.csproj" />
+  <Project Path="DelicateCouriers.Contracts/DelicateCouriers.Contracts.csproj" Id="e39b2b20-b60c-47c0-afc6-b1514249fe4e" />
+  <Project Path="DelicateCouriers.Domain/DelicateCouriers.Domain.csproj" Id="d529b5b5-f754-466e-91f2-e3ccf7e258ff" />
+  <Project Path="DelicateCouriers.ServiceDefaults/DelicateCouriers.ServiceDefaults.csproj" />
+  <Project Path="DelicateCouriers.Tests/DelicateCouriers.Tests.csproj" />
+  <Project Path="DelicateCouriers.Web/DelicateCouriers.Web.csproj" />
+</Solution>

@@ -1,0 +1,109 @@
+2026-05-18 21:58:48.43
+095706d0
+User
+Executed DbCommand (96ms) [Parameters=[@__storeId_0='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+2026-05-18 21:58:48.45
+095706d0
+User
+warn: DelicateCouriers.ApiService.Infrastructure.Services.WebhookSignatureValidator[0]
+2026-05-18 21:58:48.45
+095706d0
+User
+Webhook validation failed: Signature mismatch. Expected: 81Y1hkxUSZaL56Z1lA8mNLmmWlvUCD2hEX3J5QYuTU4=, Got: zim8WT+IkiJrNUp5u6DT4EhtPs2vlh0dP2FHzAo/UM8=
+2026-05-18 21:58:48.45
+095706d0
+User
+warn: DelicateCouriers.ApiService.Features.WooCommerce.PluginWebhookController[0]
+2026-05-18 21:58:48.45
+095706d0
+User
+Plugin webhook rejected: invalid signature for Store 3
+2026-05-18 21:58:48.45
+095706d0
+User
+Executed action method DelicateCouriers.ApiService.Features.WooCommerce.PluginWebhookController.ReceivePluginOrder (DelicateCouriers.ApiService), returned result Microsoft.AspNetCore.Mvc.UnauthorizedObjectResult in 270.4179ms.
+2026-05-18 21:58:48.45
+095706d0
+User
+info: Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker[103]
+2026-05-18 21:59:13.34
+095706d0
+User
+Request starting HTTP/1.1 POST http://127.0.0.1:8080/api/webhooks/plugin/order - application/json 787
+2026-05-18 21:59:13.34
+095706d0
+User
+info: Microsoft.AspNetCore.Hosting.Diagnostics[1]
+2026-05-18 21:59:13.35
+095706d0
+User
+info: Microsoft.AspNetCore.Routing.EndpointMiddleware[0]
+2026-05-18 21:59:13.35
+095706d0
+User
+Executing endpoint 'DelicateCouriers.ApiService.Features.WooCommerce.PluginWebhookController.ReceivePluginOrder (DelicateCouriers.ApiService)'
+2026-05-18 21:59:13.35
+095706d0
+User
+info: Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker[102]
+2026-05-18 21:59:13.35
+095706d0
+User
+Route matched with {action = "ReceivePluginOrder", controller = "PluginWebhook"}. Executing controller action with signature System.Threading.Tasks.Task`1[Microsoft.AspNetCore.Mvc.IActionResult] ReceivePluginOrder() on controller DelicateCouriers.ApiService.Features.WooCommerce.PluginWebhookController (DelicateCouriers.ApiService).
+2026-05-18 21:59:13.35
+095706d0
+User
+Executing action method DelicateCouriers.ApiService.Features.WooCommerce.PluginWebhookController.ReceivePluginOrder (DelicateCouriers.ApiService) - Validation state: Valid
+2026-05-18 21:59:13.35
+095706d0
+User
+info: Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker[101]
+2026-05-18 21:59:13.54
+095706d0
+User
+WHERE s."StoreID" = @__storeId_0 AND s."IsActive"
+2026-05-18 21:59:13.54
+095706d0
+User
+SELECT s."StoreID", s."ChangedBy", s."ChangedOn", s."CollectionAddressLine1", s."CollectionAddressLine2", s."CollectionCity", s."CollectionCompanyName", s."CollectionContactEmail", s."CollectionContactName", s."CollectionContactPhone", s."CollectionCountry", s."CollectionLatitude", s."CollectionLongitude", s."CollectionPostalCode", s."CollectionProvince", s."CollectionSuburb", s."CollectionTimeFrom", s."CollectionTimeTo", s."CreatedBy", s."CreatedOn", s."DefaultServiceLevel", s."DeliveryTimeFrom", s."DeliveryTimeTo", s."IsActive", s."Platform", s."ShiplogicAccountId", s."ShiplogicProviderId", s."ShopifyAccessToken", s."ShopifyStoreUrl", s."ShopifyWebhookSecret", s."StoreName", s."TenantID", s."WebhookSecret", s."WooCommerceURL", s."WooConsumerKey", s."WooConsumerSecret"
+
+2026-05-18 21:59:13.54
+095706d0
+User
+info: Microsoft.EntityFrameworkCore.Database.Command[20101]
+2026-05-18 21:59:13.54
+095706d0
+User
+Executed DbCommand (95ms) [Parameters=[@__storeId_0='?' (DbType = Int32)], CommandType='Text', CommandTimeout='30']
+2026-05-18 21:59:13.54
+095706d0
+User
+FROM "Stores" AS s
+2026-05-18 21:59:13.54
+095706d0
+User
+LIMIT 1
+2026-05-18 21:59:13.54
+095706d0
+User
+warn: DelicateCouriers.ApiService.Infrastructure.Services.WebhookSignatureValidator[0]
+2026-05-18 21:59:13.54
+095706d0
+User
+warn: DelicateCouriers.ApiService.Features.WooCommerce.PluginWebhookController[0]
+2026-05-18 21:59:13.54
+095706d0
+User
+Webhook validation failed: Signature mismatch. Expected: SO3YCUcipl1pX+UPTti7uy0wzswBGYh+m68KhmWS3y4=, Got: 1G6/bWW/QfPIJ8OyX25r9A4MB52w36U/c8/JfCxUO50=
+2026-05-18 21:59:13.54
+095706d0
+User
+Plugin webhook rejected: invalid signature for Store 3
+2026-05-18 21:59:13.54
+095706d0
+User
+info: Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker[103]
+2026-05-18 21:59:13.54
+095706d0
+User
+Executed action method DelicateCouriers.ApiService.Features.WooCommerce.PluginWebhookController.ReceivePluginOrder (DelicateCouriers.ApiService), returned result Microsoft.AspNetCore.Mvc.UnauthorizedObjectResult in 187.3962ms.
