@@ -424,3 +424,9 @@ FodyWeavers.xsd
 .env
 replit.nix
 
+
+# build output for the new integration service
+DelicateCouriers/DelicateCouriers.Integration/bin/
+DelicateCouriers/DelicateCouriers.Integration/obj/
+DelicateCouriers/DelicateCouriers.Integration.Tests/bin/
+DelicateCouriers/DelicateCouriers.Integration.Tests/obj/
