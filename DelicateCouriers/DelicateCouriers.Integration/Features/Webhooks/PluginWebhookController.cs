@@ -1,8 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using DelicateCouriers.Integration.Bookings;
 using DelicateCouriers.Integration.Contract.Plugin;
+using DelicateCouriers.Integration.Jobs;
 using DelicateCouriers.Integration.Merchants;
 using Microsoft.AspNetCore.Mvc;
 
@@ -26,21 +26,21 @@ public class PluginWebhookController : ControllerBase
     };
 
     private readonly IMerchantDirectory _merchants;
-    private readonly OrderBookingService _bookings;
+    private readonly IOrderQueue _queue;
     private readonly ILogger<PluginWebhookController> _logger;
 
     public PluginWebhookController(
         IMerchantDirectory merchants,
-        OrderBookingService bookings,
+        IOrderQueue queue,
         ILogger<PluginWebhookController> logger)
     {
         _merchants = merchants;
-        _bookings = bookings;
+        _queue = queue;
         _logger = logger;
     }
 
     [HttpPost("order")]
-    public async Task<IActionResult> ReceiveOrder(CancellationToken cancellationToken)
+    public async Task<IActionResult> ReceiveOrder()
     {
         var rawBody = await ReadRawBodyAsync();
         if (string.IsNullOrEmpty(rawBody)) return BadRequest(new { error = "Empty payload" });
@@ -96,14 +96,15 @@ public class PluginWebhookController : ControllerBase
             "Plugin webhook: event={Event} store={StoreId} wooOrderId={WooOrderId} status={Status}",
             payload.Event, storeId, payload.WooOrderId, payload.Status);
 
-        var result = await _bookings.BookAsync(merchant, payload, cancellationToken);
+        // Hand it to the queue and answer. Whether this order becomes a delivery is decided
+        // behind the webhook: the shopper's checkout is waiting on this response, and the
+        // Engine being slow for ten seconds must not become the merchant's problem.
+        _queue.Enqueue(storeId, rawBody);
 
-        // A skip is a success: the rules looked at the order and decided it is not a delivery,
-        // which is a correct outcome and not something the plugin should retry.
         return Ok(new PluginWebhookResponse
         {
-            Success = result.Outcome != BookingOutcome.Rejected,
-            Message = result.Reason,
+            Success = true,
+            Message = "queued",
             OrderNumber = payload.OrderNumber
         });
     }

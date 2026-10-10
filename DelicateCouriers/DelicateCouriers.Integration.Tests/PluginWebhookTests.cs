@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DelicateCouriers.Integration.Engine;
+using DelicateCouriers.Integration.Jobs;
 using DelicateCouriers.Integration.Geo;
 using DelicateCouriers.Integration.Merchants;
 using Microsoft.AspNetCore.Hosting;
@@ -30,7 +31,7 @@ public class PluginWebhookTests : IClassFixture<PluginWebhookTests.Host>
     public PluginWebhookTests(Host host)
     {
         _host = host;
-        _host.Engine.Reset();
+        _host.Queue.Reset();
     }
 
     private static string Body(long wooOrderId = 49905, string status = "processing") =>
@@ -83,10 +84,13 @@ public class PluginWebhookTests : IClassFixture<PluginWebhookTests.Host>
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Assert.True(json.RootElement.GetProperty("success").GetBoolean());
-        Assert.Equal("booked", json.RootElement.GetProperty("message").GetString());
+        Assert.Equal("queued", json.RootElement.GetProperty("message").GetString());
 
-        var sent = Assert.Single(_host.Engine.Booked);
-        Assert.Equal("WC-49905", sent.IdempotencyKey);
+        // Queued with the exact bytes that were signed, so the job books what the merchant
+        // sent rather than something re-serialised on the way through.
+        var queued = Assert.Single(_host.Queue.Items);
+        Assert.Equal(1, queued.StoreId);
+        Assert.Equal(body, queued.RawPayload);
     }
 
     [Fact]
@@ -96,7 +100,7 @@ public class PluginWebhookTests : IClassFixture<PluginWebhookTests.Host>
         var response = await PostAsync(body, Sign(body, "not-the-secret"));
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-        Assert.Empty(_host.Engine.Booked);
+        Assert.Empty(_host.Queue.Items);
     }
 
     [Fact]
@@ -107,7 +111,7 @@ public class PluginWebhookTests : IClassFixture<PluginWebhookTests.Host>
         var response = await PostAsync(Body(wooOrderId: 50000), Sign(Body(wooOrderId: 49905), Secret));
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-        Assert.Empty(_host.Engine.Booked);
+        Assert.Empty(_host.Queue.Items);
     }
 
     [Fact]
@@ -115,7 +119,7 @@ public class PluginWebhookTests : IClassFixture<PluginWebhookTests.Host>
     {
         var response = await PostAsync(Body(), signature: null);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Empty(_host.Engine.Booked);
+        Assert.Empty(_host.Queue.Items);
     }
 
     [Fact]
@@ -133,75 +137,46 @@ public class PluginWebhookTests : IClassFixture<PluginWebhookTests.Host>
         var body = Body();
         var response = await PostAsync(body, Sign(body, Secret), storeId: "2");
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
-        Assert.Empty(_host.Engine.Booked);
+        Assert.Empty(_host.Queue.Items);
     }
 
     [Fact]
-    public async Task A_collect_order_answers_success_without_booking()
+    public async Task Queues_a_collect_order_too_and_lets_the_rules_decide_behind_the_webhook()
     {
-        // A skip is a correct outcome, not a failure: telling the plugin otherwise invites a
-        // retry of something we have already decided not to do.
+        // The webhook's job is "signed, valid, ours" — not "should this be delivered". Making
+        // that call here would mean two places that decide, which is one too many.
         var body = Body().Replace("\"status\":\"processing\"", "\"status\":\"processing\",\"fulfillment_type\":\"collect\"");
         var response = await PostAsync(body, Sign(body, Secret));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.True(json.RootElement.GetProperty("success").GetBoolean());
-        Assert.Equal("collect", json.RootElement.GetProperty("message").GetString());
-        Assert.Empty(_host.Engine.Booked);
+        Assert.Single(_host.Queue.Items);
     }
 
     // ── test host ───────────────────────────────────────────────────────────
 
-    public sealed class FakeEngine : IEngineClient
+    public sealed record QueuedOrder(int StoreId, string RawPayload);
+
+    public sealed class RecordingQueue : IOrderQueue
     {
-        public List<EngineBookingRequest> Booked { get; } = new();
+        public List<QueuedOrder> Items { get; } = new();
 
-        public void Reset() => Booked.Clear();
+        public void Reset() => Items.Clear();
 
-        public Task<EngineQuote> CreateQuoteAsync(
-            string accountRef, EngineQuoteRequest request, CancellationToken cancellationToken)
-            => throw new NotSupportedException();
-
-        public Task<EngineBookingResponse> CreateBookingAsync(
-            string accountRef, EngineBookingRequest request, CancellationToken cancellationToken)
-        {
-            Booked.Add(request);
-            return Task.FromResult(new EngineBookingResponse
-            {
-                Booking = new EngineBooking
-                {
-                    Reference = "BK-260101-0001",
-                    Shipments = new List<EngineShipment> { new() { Waybill = "DC-260101-00001" } }
-                }
-            });
-        }
-
-        public Task<EngineBooking?> FindBookingByCustomerReferenceAsync(
-            string accountRef, string customerReference, CancellationToken cancellationToken)
-            => Task.FromResult<EngineBooking?>(null);
-    }
-
-    public sealed class AlwaysResolves : IEngineGeocoder
-    {
-        public Task<ResolvedPlace?> ResolveAsync(string query, CancellationToken cancellationToken)
-            => Task.FromResult<ResolvedPlace?>(
-                new ResolvedPlace("12 Oak Street, Centurion", -25.8603, 28.1894, "Centurion", "Pretoria", "0157"));
+        public void Enqueue(int storeId, string rawPayload) =>
+            Items.Add(new QueuedOrder(storeId, rawPayload));
     }
 
     public sealed class Host : WebApplicationFactory<Program>
     {
-        public FakeEngine Engine { get; } = new();
+        public RecordingQueue Queue { get; } = new();
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment("Testing");
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<IEngineClient>();
-                services.RemoveAll<IEngineGeocoder>();
-                services.AddSingleton<IEngineClient>(Engine);
-                services.AddSingleton<IEngineGeocoder, AlwaysResolves>();
+                services.RemoveAll<IOrderQueue>();
+                services.AddSingleton<IOrderQueue>(Queue);
 
                 services.AddSingleton<IOptions<MerchantDirectoryOptions>>(
                     Options.Create(new MerchantDirectoryOptions
