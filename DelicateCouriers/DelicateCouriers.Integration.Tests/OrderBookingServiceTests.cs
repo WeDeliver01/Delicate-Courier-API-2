@@ -4,6 +4,7 @@ using DelicateCouriers.Integration.Contract.Plugin;
 using DelicateCouriers.Integration.Engine;
 using DelicateCouriers.Integration.Geo;
 using DelicateCouriers.Integration.Merchants;
+using DelicateCouriers.Integration.Storefront;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -20,9 +21,10 @@ public class OrderBookingServiceTests
 {
     private readonly RecordingEngine _engine = new();
     private readonly StubGeocoder _geocoder = new();
+    private readonly StubStorefront _storefront = new();
 
     private OrderBookingService Service() =>
-        new(_engine, _geocoder, NullLogger<OrderBookingService>.Instance);
+        new(_engine, _geocoder, _storefront, NullLogger<OrderBookingService>.Instance);
 
     private static Merchant Merchant() => new()
     {
@@ -197,6 +199,71 @@ public class OrderBookingServiceTests
         Assert.Equal(4m, Assert.Single(drop.Parcels).WeightKg);
     }
 
+    // ── the collection shipping-method guard ────────────────────────────────
+
+    [Theory]
+    [InlineData("local_pickup", "Local pickup")]
+    [InlineData("flat_rate", "Collect from 1 Clifford road, Irene… R95.00")]
+    [InlineData("flat_rate", "Pick up in store")]
+    [InlineData("flat_rate", "Pick-up Saturday")]
+    [InlineData("collection_point", "Saturday market")]
+    public async Task Refuses_to_book_when_the_shopper_chose_collection(string id, string title)
+    {
+        // The payload says "delivery" because the plugin only looks at the method id. The
+        // merchant's own label is the only signal that this is a collection.
+        _storefront.Method = new ChosenShippingMethod(id, title);
+
+        var result = await Service().BookAsync(Merchant(), Order(), default);
+
+        Assert.Equal(BookingOutcome.Skipped, result.Outcome);
+        Assert.Equal("collection_shipping_method", result.Reason);
+        Assert.Empty(_engine.Bookings);
+    }
+
+    [Fact]
+    public async Task Books_normally_when_the_chosen_method_is_a_real_delivery()
+    {
+        _storefront.Method = new ChosenShippingMethod("flat_rate", "Standard baked goods delivery");
+
+        var result = await Service().BookAsync(Merchant(), Order(), default);
+
+        Assert.Equal(BookingOutcome.Booked, result.Outcome);
+    }
+
+    [Fact]
+    public async Task Books_when_the_merchant_cannot_be_asked_at_all()
+    {
+        // No REST credentials is "nothing to verify", which is different from a check that
+        // failed. Treating it as a failure would stop every store without credentials.
+        _storefront.Method = null;
+
+        var result = await Service().BookAsync(Merchant(), Order(), default);
+
+        Assert.Equal(BookingOutcome.Booked, result.Outcome);
+    }
+
+    [Fact]
+    public async Task A_failed_storefront_lookup_withholds_the_booking_rather_than_guessing()
+    {
+        // Not knowing whether the customer is collecting is exactly the case this guard
+        // exists for. It throws, so the job retries, rather than booking a delivery nobody
+        // asked for.
+        _storefront.Throw = new StorefrontLookupException("storefront unreachable");
+
+        await Assert.ThrowsAsync<StorefrontLookupException>(
+            () => Service().BookAsync(Merchant(), Order(), default));
+
+        Assert.Empty(_engine.Bookings);
+    }
+
+    [Fact]
+    public async Task Does_not_bother_the_storefront_about_an_order_the_rules_already_rejected()
+    {
+        // A refunded order is settled without a network call to anyone.
+        await Service().BookAsync(Merchant(), Order(status: "refunded"), default);
+        Assert.Equal(0, _storefront.Calls);
+    }
+
     // ── stubs ───────────────────────────────────────────────────────────────
 
     private sealed record BookingCall(string AccountRef, EngineBookingRequest Body);
@@ -240,6 +307,22 @@ public class OrderBookingServiceTests
             Lookups.Add(customerReference);
             return Task.FromResult(
                 ExistingByReference.TryGetValue(customerReference, out var b) ? b : null);
+        }
+    }
+
+    private sealed class StubStorefront : IStorefront
+    {
+        /// <summary>Null means "this merchant cannot be asked", which is not a failure.</summary>
+        public ChosenShippingMethod? Method { get; set; }
+        public Exception? Throw { get; set; }
+        public int Calls { get; private set; }
+
+        public Task<ChosenShippingMethod?> GetShippingMethodAsync(
+            Merchant merchant, long wooOrderId, CancellationToken cancellationToken)
+        {
+            Calls++;
+            if (Throw is not null) throw Throw;
+            return Task.FromResult(Method);
         }
     }
 

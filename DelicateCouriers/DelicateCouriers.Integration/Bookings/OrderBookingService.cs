@@ -2,6 +2,7 @@ using DelicateCouriers.Integration.Contract.Plugin;
 using DelicateCouriers.Integration.Engine;
 using DelicateCouriers.Integration.Geo;
 using DelicateCouriers.Integration.Merchants;
+using DelicateCouriers.Integration.Storefront;
 
 namespace DelicateCouriers.Integration.Bookings;
 
@@ -47,15 +48,18 @@ public sealed class OrderBookingService
 {
     private readonly IEngineClient _engine;
     private readonly IEngineGeocoder _geocoder;
+    private readonly IStorefront _storefront;
     private readonly ILogger<OrderBookingService> _logger;
 
     public OrderBookingService(
         IEngineClient engine,
         IEngineGeocoder geocoder,
+        IStorefront storefront,
         ILogger<OrderBookingService> logger)
     {
         _engine = engine;
         _geocoder = geocoder;
+        _storefront = storefront;
         _logger = logger;
     }
 
@@ -71,6 +75,23 @@ public sealed class OrderBookingService
                 "Not booking WooOrderID {WooOrderId} for store {StoreId}: {Reason}",
                 payload.WooOrderId, merchant.StoreId, decision.Reason);
             return new BookingResult(BookingOutcome.Skipped, decision.Reason);
+        }
+
+        // The payload says this is a delivery, but the plugin decides that by looking only at
+        // the shipping method's id — so a merchant selling collection as an ordinary flat-rate
+        // method arrives here tagged "delivery". Ask the storefront what was really chosen.
+        //
+        // A lookup that fails does not fall through to booking. Not knowing whether the
+        // customer is collecting is exactly the case this guard exists for, so it throws and
+        // the job tries again later rather than guessing.
+        var method = await _storefront.GetShippingMethodAsync(
+            merchant, payload.WooOrderId, cancellationToken);
+        if (Fulfillment.IsCollection(method))
+        {
+            _logger.LogInformation(
+                "Not booking WooOrderID {WooOrderId}: chosen shipping method is collection ({Title})",
+                payload.WooOrderId, method!.MethodTitle ?? method.MethodId);
+            return new BookingResult(BookingOutcome.Skipped, "collection_shipping_method");
         }
 
         var reference = BookingRules.CustomerReferenceFor(payload.WooOrderId);

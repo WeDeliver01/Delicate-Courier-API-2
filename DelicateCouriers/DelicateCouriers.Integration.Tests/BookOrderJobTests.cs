@@ -7,6 +7,7 @@ using DelicateCouriers.Integration.Engine;
 using DelicateCouriers.Integration.Geo;
 using DelicateCouriers.Integration.Jobs;
 using DelicateCouriers.Integration.Merchants;
+using DelicateCouriers.Integration.Storefront;
 using Hangfire;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -30,7 +31,7 @@ public class BookOrderJobTests
         var directory = new ConfiguredMerchantDirectory(
             Options.Create(new MerchantDirectoryOptions { Stores = merchants.ToList() }));
         var bookings = new OrderBookingService(
-            _engine, new AlwaysResolves(), NullLogger<OrderBookingService>.Instance);
+            _engine, new AlwaysResolves(), new NotReachable(), NullLogger<OrderBookingService>.Instance);
         return new BookOrderJob(directory, bookings, NullLogger<BookOrderJob>.Instance);
     }
 
@@ -161,6 +162,14 @@ public class BookOrderJobTests
         public Task<EngineBooking?> FindBookingByCustomerReferenceAsync(
             string accountRef, string customerReference, CancellationToken cancellationToken)
             => Task.FromResult<EngineBooking?>(null);
+    }
+
+    /// <summary>A merchant with no REST credentials: nothing to verify, nothing withheld.</summary>
+    private sealed class NotReachable : IStorefront
+    {
+        public Task<ChosenShippingMethod?> GetShippingMethodAsync(
+            Merchant merchant, long wooOrderId, CancellationToken cancellationToken)
+            => Task.FromResult<ChosenShippingMethod?>(null);
     }
 
     private sealed class AlwaysResolves : IEngineGeocoder

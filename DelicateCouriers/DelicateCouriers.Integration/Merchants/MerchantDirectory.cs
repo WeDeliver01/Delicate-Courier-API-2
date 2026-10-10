@@ -63,6 +63,15 @@ public sealed class Merchant
     /// so a later webhook books the order once it qualifies.
     /// </summary>
     public List<string> BookingTriggerStatuses { get; set; } = new();
+
+    /// <summary>
+    /// The merchant's own WooCommerce, read over its REST API to check what the shopper
+    /// actually chose at checkout. Absent credentials mean the store cannot be asked, which
+    /// is treated as "nothing to verify" rather than as a failure.
+    /// </summary>
+    public string? WooCommerceUrl { get; set; }
+    public string? WooConsumerKey { get; set; }
+    public string? WooConsumerSecret { get; set; }
 }
 
 public sealed class MerchantAddress

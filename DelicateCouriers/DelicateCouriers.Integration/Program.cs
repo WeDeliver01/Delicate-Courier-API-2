@@ -3,6 +3,7 @@ using DelicateCouriers.Integration.Engine;
 using DelicateCouriers.Integration.Geo;
 using DelicateCouriers.Integration.Jobs;
 using DelicateCouriers.Integration.Merchants;
+using DelicateCouriers.Integration.Storefront;
 using Hangfire;
 using Hangfire.PostgreSql;
 
@@ -39,6 +40,13 @@ builder.Services.AddHttpClient<IEngineGeocoder, EngineGeocoder>(http =>
 {
     http.BaseAddress = new Uri(engineOptions.BaseUrl.TrimEnd('/') + "/");
     http.Timeout = TimeSpan.FromSeconds(engineOptions.TimeoutSeconds);
+});
+
+// Each merchant's own storefront, read to verify what the shopper chose. One client for all
+// of them: the base address differs per merchant, so it is set per request rather than here.
+builder.Services.AddHttpClient<IStorefront, WooStorefront>(http =>
+{
+    http.Timeout = TimeSpan.FromSeconds(20);
 });
 
 // The order queue must survive a restart, so it is Postgres-backed. Refusing to start without
