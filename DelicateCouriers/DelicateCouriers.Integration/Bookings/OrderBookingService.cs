@@ -1,0 +1,220 @@
+using DelicateCouriers.Integration.Contract.Plugin;
+using DelicateCouriers.Integration.Engine;
+using DelicateCouriers.Integration.Geo;
+using DelicateCouriers.Integration.Merchants;
+
+namespace DelicateCouriers.Integration.Bookings;
+
+public enum BookingOutcome
+{
+    /// <summary>A delivery now exists for this order.</summary>
+    Booked,
+
+    /// <summary>One already existed. The same answer, arriving late.</summary>
+    AlreadyBooked,
+
+    /// <summary>The rules say this order is not a delivery, or not one yet.</summary>
+    Skipped,
+
+    /// <summary>Did not book, and will not on a retry either.</summary>
+    Rejected
+}
+
+public sealed record BookingResult(
+    BookingOutcome Outcome,
+    string Reason,
+    string? BookingReference = null,
+    string? Waybill = null)
+{
+    public bool Booked => Outcome is BookingOutcome.Booked or BookingOutcome.AlreadyBooked;
+}
+
+/// <summary>
+/// Turning a WooCommerce order into a delivery.
+///
+/// Two things this deliberately does *not* do, because the Engine does them better:
+///
+/// It keeps no local lock and no local shipment row to guard against double-booking. The
+/// idempotency key travels to the Engine, which holds a unique index on it and resolves the
+/// race inside the transaction that creates the booking. A lock here could only protect this
+/// process; the Engine's constraint protects every caller, including a human in the portal.
+///
+/// It does not re-price at booking time by default. The Engine quotes as part of booking, and
+/// the shopper's checkout figure is carried as a ceiling rather than as the price — so a
+/// quote that has drifted upward refuses instead of quietly charging more than was agreed.
+/// </summary>
+public sealed class OrderBookingService
+{
+    private readonly IEngineClient _engine;
+    private readonly IEngineGeocoder _geocoder;
+    private readonly ILogger<OrderBookingService> _logger;
+
+    public OrderBookingService(
+        IEngineClient engine,
+        IEngineGeocoder geocoder,
+        ILogger<OrderBookingService> logger)
+    {
+        _engine = engine;
+        _geocoder = geocoder;
+        _logger = logger;
+    }
+
+    public async Task<BookingResult> BookAsync(
+        Merchant merchant,
+        PluginOrderPayload payload,
+        CancellationToken cancellationToken)
+    {
+        var decision = BookingRules.Evaluate(merchant, payload);
+        if (!decision.ShouldBook)
+        {
+            _logger.LogInformation(
+                "Not booking WooOrderID {WooOrderId} for store {StoreId}: {Reason}",
+                payload.WooOrderId, merchant.StoreId, decision.Reason);
+            return new BookingResult(BookingOutcome.Skipped, decision.Reason);
+        }
+
+        var reference = BookingRules.CustomerReferenceFor(payload.WooOrderId);
+
+        // Ask before booking. A previous attempt may have succeeded at the Engine and died
+        // before it could say so here, and the cost of asking is one read against an indexed
+        // column — far cheaper than the alternative, which is a second driver at the door.
+        var existing = await _engine.FindBookingByCustomerReferenceAsync(
+            merchant.EngineAccountRef, reference, cancellationToken);
+        if (existing is not null)
+        {
+            _logger.LogInformation(
+                "WooOrderID {WooOrderId} is already booked as {Reference} — idempotent skip",
+                payload.WooOrderId, existing.Reference);
+            return new BookingResult(
+                BookingOutcome.AlreadyBooked,
+                "already_booked",
+                existing.Reference,
+                existing.Shipments.FirstOrDefault()?.Waybill);
+        }
+
+        var destination = await _geocoder.ResolveAsync(Describe(payload.ShippingAddress), cancellationToken);
+        if (destination is null)
+        {
+            // Permanent as far as retrying goes: the same address will not resolve in an hour.
+            // Someone has to look at it, so say so rather than retrying for a day.
+            _logger.LogWarning(
+                "Cannot book WooOrderID {WooOrderId}: delivery address did not resolve",
+                payload.WooOrderId);
+            return new BookingResult(BookingOutcome.Rejected, "address_unresolvable");
+        }
+
+        var request = BuildRequest(merchant, payload, destination, reference);
+
+        try
+        {
+            var result = await _engine.CreateBookingAsync(
+                merchant.EngineAccountRef, request, cancellationToken);
+
+            var waybill = result.Booking.Shipments.FirstOrDefault()?.Waybill;
+            _logger.LogInformation(
+                "Booked WooOrderID {WooOrderId} as {Reference} (waybill {Waybill}, replayed={Replayed})",
+                payload.WooOrderId, result.Booking.Reference, waybill, result.Replayed);
+
+            return new BookingResult(
+                result.Replayed ? BookingOutcome.AlreadyBooked : BookingOutcome.Booked,
+                result.Replayed ? "already_booked" : "booked",
+                result.Booking.Reference,
+                waybill);
+        }
+        catch (EngineCallException ex) when (!ex.IsTransient)
+        {
+            // A 4xx will be refused just as firmly on the tenth attempt. Retrying an
+            // unfunded wallet for 24 hours only delays the moment someone is told.
+            _logger.LogWarning(
+                "Engine refused WooOrderID {WooOrderId}: {Code} ({Message})",
+                payload.WooOrderId, ex.Code, ex.Message);
+            return new BookingResult(BookingOutcome.Rejected, ex.Code);
+        }
+    }
+
+    internal static string Describe(PluginShippingAddress address) => string.Join(", ", new[]
+    {
+        address.Street,
+        address.Suburb,
+        address.City,
+        address.State,
+        address.Postcode,
+        address.Country
+    }.Where(part => !string.IsNullOrWhiteSpace(part)));
+
+    private static EngineBookingRequest BuildRequest(
+        Merchant merchant,
+        PluginOrderPayload payload,
+        ResolvedPlace destination,
+        string reference) => new()
+    {
+        ServiceLevelCode = merchant.EngineServiceLevelCode,
+        IdempotencyKey = reference,
+        CustomerReference = reference,
+
+        // What the shopper was charged for delivery, as a ceiling. Zero means the merchant
+        // did not charge separately for it, in which case there is nothing to hold us to.
+        MaxTotalCents = payload.ShippingTotal > 0
+            ? (long)Math.Round(payload.ShippingTotal * 100m, MidpointRounding.AwayFromZero)
+            : null,
+
+        Collection = new EngineCollection
+        {
+            Address = ToEngineAddress(merchant.Collection),
+            Contact = new EngineContact
+            {
+                Name = merchant.Collection.ContactName ?? merchant.Name,
+                Phone = merchant.Collection.ContactPhone ?? string.Empty
+            }
+        },
+        Drops = new List<EngineDrop>
+        {
+            new()
+            {
+                Address = new EngineAddress
+                {
+                    Formatted = destination.Formatted,
+                    Line1 = payload.ShippingAddress.Street,
+                    Suburb = payload.ShippingAddress.Suburb ?? destination.Suburb,
+                    City = payload.ShippingAddress.City,
+                    PostalCode = string.IsNullOrWhiteSpace(payload.ShippingAddress.Postcode)
+                        ? destination.PostalCode
+                        : payload.ShippingAddress.Postcode,
+                    Country = "ZA",
+                    Location = new EngineLatLng(destination.Latitude, destination.Longitude)
+                },
+                Recipient = new EngineContact
+                {
+                    Name = Fallback(payload.Customer.Name, "Customer"),
+                    Phone = Fallback(payload.Customer.Phone, "0000000000"),
+                    Email = string.IsNullOrWhiteSpace(payload.Customer.Email) ? null : payload.Customer.Email
+                },
+                Instructions = string.IsNullOrWhiteSpace(payload.CustomerNote) ? null : payload.CustomerNote,
+                Parcels = new List<EngineParcel>
+                {
+                    new()
+                    {
+                        PackageTypeId = merchant.DefaultPackageTypeId,
+                        Quantity = 1,
+                        WeightKg = payload.TotalWeight > 0 ? payload.TotalWeight : null,
+                        Description = $"Order {payload.OrderNumber}"
+                    }
+                }
+            }
+        }
+    };
+
+    private static EngineAddress ToEngineAddress(MerchantAddress a) => new()
+    {
+        Formatted = a.Formatted,
+        Line1 = a.Line1,
+        Suburb = a.Suburb,
+        City = a.City,
+        PostalCode = a.PostalCode,
+        Country = a.Country,
+        Location = new EngineLatLng(a.Latitude, a.Longitude)
+    };
+
+    private static string Fallback(string? value, string whenMissing) =>
+        string.IsNullOrWhiteSpace(value) ? whenMissing : value;
+}

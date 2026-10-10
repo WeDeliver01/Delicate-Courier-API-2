@@ -1,3 +1,4 @@
+using DelicateCouriers.Integration.Bookings;
 using DelicateCouriers.Integration.Engine;
 using DelicateCouriers.Integration.Geo;
 using DelicateCouriers.Integration.Merchants;
@@ -11,6 +12,7 @@ builder.Services.AddSwaggerGen();
 builder.Services.Configure<MerchantDirectoryOptions>(
     builder.Configuration.GetSection(MerchantDirectoryOptions.SectionName));
 builder.Services.AddSingleton<IMerchantDirectory, ConfiguredMerchantDirectory>();
+builder.Services.AddScoped<OrderBookingService>();
 
 var engineOptions = builder.Configuration
     .GetSection(EngineOptions.SectionName)

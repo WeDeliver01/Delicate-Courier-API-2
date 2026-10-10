@@ -176,6 +176,16 @@ public class RatesContractTests : IClassFixture<RatesContractTests.Host>
         public Task<EngineQuote> CreateQuoteAsync(
             string accountRef, EngineQuoteRequest request, CancellationToken cancellationToken)
             => Task.FromResult(Quote(new QuoteCall(accountRef, request)));
+
+        // Quoting is the only thing the rates path may do. Booking from a checkout rate
+        // request would be a serious bug, so these throw rather than returning something.
+        public Task<EngineBookingResponse> CreateBookingAsync(
+            string accountRef, EngineBookingRequest request, CancellationToken cancellationToken)
+            => throw new InvalidOperationException("the rates path must never book");
+
+        public Task<EngineBooking?> FindBookingByCustomerReferenceAsync(
+            string accountRef, string customerReference, CancellationToken cancellationToken)
+            => throw new InvalidOperationException("the rates path must never look up bookings");
     }
 
     public sealed class StubGeocoder : IEngineGeocoder

@@ -46,6 +46,23 @@ public sealed class Merchant
     public string DefaultPackageTypeId { get; set; } = string.Empty;
 
     public int EstimatedDeliveryDays { get; set; } = 1;
+
+    /// <summary>
+    /// Shared secret the plugin signs its webhooks with (HMAC-SHA256 over the raw body).
+    ///
+    /// Without it anyone who guessed a store id could inject orders for that merchant, so a
+    /// merchant configured without one is a configuration error rather than an open door.
+    /// </summary>
+    public string WebhookSecret { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Statuses that may trigger a booking, when this merchant wants only some of them.
+    ///
+    /// Empty means the default: book on any non-terminal status. A merchant who lists statuses
+    /// gets "not yet" rather than "no" for the others — the plugin fires on every transition,
+    /// so a later webhook books the order once it qualifies.
+    /// </summary>
+    public List<string> BookingTriggerStatuses { get; set; } = new();
 }
 
 public sealed class MerchantAddress

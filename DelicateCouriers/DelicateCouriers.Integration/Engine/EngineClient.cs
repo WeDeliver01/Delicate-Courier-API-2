@@ -59,6 +59,26 @@ public interface IEngineClient
         string accountRef,
         EngineQuoteRequest request,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Price and book in one call. Safe to retry with the same idempotency key: the Engine
+    /// returns the booking it already made rather than making a second one.
+    /// </summary>
+    Task<EngineBookingResponse> CreateBookingAsync(
+        string accountRef,
+        EngineBookingRequest request,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The booking already recorded against this reference, or null.
+    ///
+    /// This is what closes the crash window between a successful booking and this service
+    /// recording it: on the next attempt we ask before we book.
+    /// </summary>
+    Task<EngineBooking?> FindBookingByCustomerReferenceAsync(
+        string accountRef,
+        string customerReference,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -107,6 +127,55 @@ public sealed class EngineClient : IEngineClient
                 response.StatusCode, "empty_response", "the Engine returned an empty quote", null);
         }
         return quote;
+    }
+
+    public async Task<EngineBookingResponse> CreateBookingAsync(
+        string accountRef,
+        EngineBookingRequest request,
+        CancellationToken cancellationToken)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Post, "v1/service/bookings")
+        {
+            Content = JsonContent.Create(request, options: Json)
+        };
+        message.Headers.Add(AccountRefHeader, accountRef);
+
+        using var response = await _http.SendAsync(message, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw await ToExceptionAsync(response, accountRef, cancellationToken);
+        }
+
+        var booked =
+            await response.Content.ReadFromJsonAsync<EngineBookingResponse>(Json, cancellationToken);
+        if (booked is null)
+        {
+            throw new EngineCallException(
+                response.StatusCode, "empty_response", "the Engine returned an empty booking", null);
+        }
+        return booked;
+    }
+
+    public async Task<EngineBooking?> FindBookingByCustomerReferenceAsync(
+        string accountRef,
+        string customerReference,
+        CancellationToken cancellationToken)
+    {
+        var url = "v1/service/bookings/by-customer-reference?customerReference="
+                  + Uri.EscapeDataString(customerReference);
+        using var message = new HttpRequestMessage(HttpMethod.Get, url);
+        message.Headers.Add(AccountRefHeader, accountRef);
+
+        using var response = await _http.SendAsync(message, cancellationToken);
+
+        // Nothing booked yet is the ordinary case, not a failure.
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        if (!response.IsSuccessStatusCode)
+        {
+            throw await ToExceptionAsync(response, accountRef, cancellationToken);
+        }
+
+        return await response.Content.ReadFromJsonAsync<EngineBooking>(Json, cancellationToken);
     }
 
     /// <summary>
