@@ -430,3 +430,6 @@ DelicateCouriers/DelicateCouriers.Integration/bin/
 DelicateCouriers/DelicateCouriers.Integration/obj/
 DelicateCouriers/DelicateCouriers.Integration.Tests/bin/
 DelicateCouriers/DelicateCouriers.Integration.Tests/obj/
+
+# rendered samples, not source
+artifacts/

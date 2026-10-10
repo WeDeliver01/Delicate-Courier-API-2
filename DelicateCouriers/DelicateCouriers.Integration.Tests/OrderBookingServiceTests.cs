@@ -2,6 +2,7 @@ using System.Net;
 using DelicateCouriers.Integration.Bookings;
 using DelicateCouriers.Integration.Contract.Plugin;
 using DelicateCouriers.Integration.Engine;
+using DelicateCouriers.Integration.Labels;
 using DelicateCouriers.Integration.Geo;
 using DelicateCouriers.Integration.Merchants;
 using DelicateCouriers.Integration.Storefront;
@@ -308,6 +309,10 @@ public class OrderBookingServiceTests
             return Task.FromResult(
                 ExistingByReference.TryGetValue(customerReference, out var b) ? b : null);
         }
+
+        public Task<WaybillDocument> GetWaybillAsync(
+            string accountRef, string shipmentId, CancellationToken cancellationToken)
+            => throw new NotSupportedException("this path never prints a label");
     }
 
     private sealed class StubStorefront : IStorefront

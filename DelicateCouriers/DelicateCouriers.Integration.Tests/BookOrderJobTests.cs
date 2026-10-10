@@ -4,6 +4,7 @@ using System.Text.Json;
 using DelicateCouriers.Integration.Bookings;
 using DelicateCouriers.Integration.Contract.Plugin;
 using DelicateCouriers.Integration.Engine;
+using DelicateCouriers.Integration.Labels;
 using DelicateCouriers.Integration.Geo;
 using DelicateCouriers.Integration.Jobs;
 using DelicateCouriers.Integration.Merchants;
@@ -162,6 +163,10 @@ public class BookOrderJobTests
         public Task<EngineBooking?> FindBookingByCustomerReferenceAsync(
             string accountRef, string customerReference, CancellationToken cancellationToken)
             => Task.FromResult<EngineBooking?>(null);
+
+        public Task<WaybillDocument> GetWaybillAsync(
+            string accountRef, string shipmentId, CancellationToken cancellationToken)
+            => throw new NotSupportedException("this path never prints a label");
     }
 
     /// <summary>A merchant with no REST credentials: nothing to verify, nothing withheld.</summary>

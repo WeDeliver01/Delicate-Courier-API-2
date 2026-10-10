@@ -2,6 +2,7 @@ using DelicateCouriers.Integration.Bookings;
 using DelicateCouriers.Integration.Engine;
 using DelicateCouriers.Integration.Geo;
 using DelicateCouriers.Integration.Jobs;
+using DelicateCouriers.Integration.Labels;
 using DelicateCouriers.Integration.Merchants;
 using DelicateCouriers.Integration.Storefront;
 using Hangfire;
@@ -18,6 +19,7 @@ builder.Services.Configure<MerchantDirectoryOptions>(
 builder.Services.AddSingleton<IMerchantDirectory, ConfiguredMerchantDirectory>();
 builder.Services.AddScoped<OrderBookingService>();
 builder.Services.AddScoped<BookOrderJob>();
+builder.Services.AddSingleton<ILabelRenderer, LabelRenderer>();
 
 var engineOptions = builder.Configuration
     .GetSection(EngineOptions.SectionName)

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using DelicateCouriers.Integration.Engine;
+using DelicateCouriers.Integration.Labels;
 using DelicateCouriers.Integration.Geo;
 using DelicateCouriers.Integration.Merchants;
 using Microsoft.AspNetCore.Hosting;
@@ -186,6 +187,10 @@ public class RatesContractTests : IClassFixture<RatesContractTests.Host>
         public Task<EngineBooking?> FindBookingByCustomerReferenceAsync(
             string accountRef, string customerReference, CancellationToken cancellationToken)
             => throw new InvalidOperationException("the rates path must never look up bookings");
+
+        public Task<WaybillDocument> GetWaybillAsync(
+            string accountRef, string shipmentId, CancellationToken cancellationToken)
+            => throw new NotSupportedException("this path never prints a label");
     }
 
     public sealed class StubGeocoder : IEngineGeocoder

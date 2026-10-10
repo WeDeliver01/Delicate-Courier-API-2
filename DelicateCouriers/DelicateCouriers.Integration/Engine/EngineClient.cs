@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using DelicateCouriers.Integration.Labels;
 
 namespace DelicateCouriers.Integration.Engine;
 
@@ -78,6 +79,12 @@ public interface IEngineClient
     Task<EngineBooking?> FindBookingByCustomerReferenceAsync(
         string accountRef,
         string customerReference,
+        CancellationToken cancellationToken);
+
+    /// <summary>The waybill for a shipment, as data to be laid out here.</summary>
+    Task<WaybillDocument> GetWaybillAsync(
+        string accountRef,
+        string shipmentId,
         CancellationToken cancellationToken);
 }
 
@@ -176,6 +183,30 @@ public sealed class EngineClient : IEngineClient
         }
 
         return await response.Content.ReadFromJsonAsync<EngineBooking>(Json, cancellationToken);
+    }
+
+    public async Task<WaybillDocument> GetWaybillAsync(
+        string accountRef,
+        string shipmentId,
+        CancellationToken cancellationToken)
+    {
+        using var message = new HttpRequestMessage(
+            HttpMethod.Get, $"v1/service/shipments/{Uri.EscapeDataString(shipmentId)}/waybill");
+        message.Headers.Add(AccountRefHeader, accountRef);
+
+        using var response = await _http.SendAsync(message, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw await ToExceptionAsync(response, accountRef, cancellationToken);
+        }
+
+        var waybill = await response.Content.ReadFromJsonAsync<WaybillDocument>(Json, cancellationToken);
+        if (waybill is null)
+        {
+            throw new EngineCallException(
+                response.StatusCode, "empty_response", "the Engine returned an empty waybill", null);
+        }
+        return waybill;
     }
 
     /// <summary>
