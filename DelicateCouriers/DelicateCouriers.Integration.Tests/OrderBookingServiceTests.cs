@@ -313,6 +313,10 @@ public class OrderBookingServiceTests
         public Task<WaybillDocument> GetWaybillAsync(
             string accountRef, string shipmentId, CancellationToken cancellationToken)
             => throw new NotSupportedException("this path never prints a label");
+
+        public Task<EngineBooking?> GetBookingAsync(
+            string accountRef, string bookingId, CancellationToken cancellationToken)
+            => throw new NotSupportedException("this path never reads a booking by id");
     }
 
     private sealed class StubStorefront : IStorefront
@@ -329,6 +333,11 @@ public class OrderBookingServiceTests
             if (Throw is not null) throw Throw;
             return Task.FromResult(Method);
         }
+
+        public Task UpdateOrderAsync(
+            Merchant merchant, long wooOrderId, StorefrontOrderUpdate update,
+            CancellationToken cancellationToken)
+            => throw new NotSupportedException("booking never writes back to a storefront");
     }
 
     private sealed class StubGeocoder : IEngineGeocoder

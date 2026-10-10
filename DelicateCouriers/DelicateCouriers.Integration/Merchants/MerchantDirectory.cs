@@ -23,6 +23,15 @@ public sealed class Merchant
     /// </summary>
     public string EngineAccountRef { get; set; } = string.Empty;
 
+    /// <summary>
+    /// The Engine's own account id, which is what its outbound deliveries name.
+    ///
+    /// Configured alongside the reference rather than derived from it: a status callback
+    /// arrives with an account uuid and nothing else to route on, and resolving it by calling
+    /// back to the Engine would mean a lookup per status change on every shipment.
+    /// </summary>
+    public string? EngineAccountId { get; set; }
+
     /// <summary>Where the courier collects. Priced as one leg of the Engine's depot loop.</summary>
     public MerchantAddress Collection { get; set; } = new();
 
@@ -97,18 +106,32 @@ public sealed class MerchantDirectoryOptions
 public interface IMerchantDirectory
 {
     Merchant? Find(int storeId);
+
+    /// <summary>The merchant an Engine account belongs to, for routing inbound callbacks.</summary>
+    Merchant? FindByAccountId(string? engineAccountId);
 }
 
 public sealed class ConfiguredMerchantDirectory : IMerchantDirectory
 {
     private readonly IReadOnlyDictionary<int, Merchant> _byStoreId;
+    private readonly IReadOnlyDictionary<string, Merchant> _byAccountId;
 
     public ConfiguredMerchantDirectory(IOptions<MerchantDirectoryOptions> options)
     {
         _byStoreId = options.Value.Stores
             .GroupBy(s => s.StoreId)
             .ToDictionary(g => g.Key, g => g.Last());
+
+        _byAccountId = options.Value.Stores
+            .Where(s => !string.IsNullOrWhiteSpace(s.EngineAccountId))
+            .GroupBy(s => s.EngineAccountId!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.Last(), StringComparer.OrdinalIgnoreCase);
     }
 
     public Merchant? Find(int storeId) => _byStoreId.TryGetValue(storeId, out var m) ? m : null;
+
+    public Merchant? FindByAccountId(string? engineAccountId) =>
+        !string.IsNullOrWhiteSpace(engineAccountId) && _byAccountId.TryGetValue(engineAccountId, out var m)
+            ? m
+            : null;
 }

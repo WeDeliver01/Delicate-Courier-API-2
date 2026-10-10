@@ -191,6 +191,10 @@ public class RatesContractTests : IClassFixture<RatesContractTests.Host>
         public Task<WaybillDocument> GetWaybillAsync(
             string accountRef, string shipmentId, CancellationToken cancellationToken)
             => throw new NotSupportedException("this path never prints a label");
+
+        public Task<EngineBooking?> GetBookingAsync(
+            string accountRef, string bookingId, CancellationToken cancellationToken)
+            => throw new NotSupportedException("this path never reads a booking by id");
     }
 
     public sealed class StubGeocoder : IEngineGeocoder

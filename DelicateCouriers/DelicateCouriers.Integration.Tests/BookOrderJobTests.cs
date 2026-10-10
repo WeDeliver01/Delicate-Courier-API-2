@@ -167,6 +167,10 @@ public class BookOrderJobTests
         public Task<WaybillDocument> GetWaybillAsync(
             string accountRef, string shipmentId, CancellationToken cancellationToken)
             => throw new NotSupportedException("this path never prints a label");
+
+        public Task<EngineBooking?> GetBookingAsync(
+            string accountRef, string bookingId, CancellationToken cancellationToken)
+            => throw new NotSupportedException("this path never reads a booking by id");
     }
 
     /// <summary>A merchant with no REST credentials: nothing to verify, nothing withheld.</summary>
@@ -175,6 +179,11 @@ public class BookOrderJobTests
         public Task<ChosenShippingMethod?> GetShippingMethodAsync(
             Merchant merchant, long wooOrderId, CancellationToken cancellationToken)
             => Task.FromResult<ChosenShippingMethod?>(null);
+
+        public Task UpdateOrderAsync(
+            Merchant merchant, long wooOrderId, StorefrontOrderUpdate update,
+            CancellationToken cancellationToken)
+            => throw new NotSupportedException("booking never writes back to a storefront");
     }
 
     private sealed class AlwaysResolves : IEngineGeocoder

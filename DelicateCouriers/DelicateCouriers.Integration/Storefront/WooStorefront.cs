@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -15,8 +16,26 @@ public sealed class StorefrontLookupException : Exception
     public StorefrontLookupException(string message, Exception? inner = null) : base(message, inner) { }
 }
 
+/// <summary>What to tell a merchant's shop about one of its orders.</summary>
+/// <param name="Status">The WooCommerce order status to move to, or null to leave it alone.</param>
+/// <param name="CustomerNote">A note the customer sees, or null for none.</param>
+/// <param name="ShipmentStatus">The courier status written to order meta.</param>
+public sealed record StorefrontOrderUpdate(
+    string? Status,
+    string? CustomerNote,
+    string ShipmentStatus,
+    string Waybill);
+
 public interface IStorefront
 {
+    /// <summary>
+    /// Push a delivery update onto the merchant's order. Throws
+    /// <see cref="StorefrontLookupException"/> when the shop cannot be reached or refuses.
+    /// </summary>
+    Task UpdateOrderAsync(
+        Merchant merchant, long wooOrderId, StorefrontOrderUpdate update,
+        CancellationToken cancellationToken);
+
     /// <summary>
     /// The shipping method on an order, or null when this merchant cannot be asked — no REST
     /// credentials means there is nothing to check, which is different from a check that
@@ -103,6 +122,84 @@ public sealed class WooStorefront : IStorefront
                 wooOrderId, line?.MethodId, line?.MethodTitle);
 
             return new ChosenShippingMethod(line?.MethodId, line?.MethodTitle);
+        }
+    }
+
+    public async Task UpdateOrderAsync(
+        Merchant merchant,
+        long wooOrderId,
+        StorefrontOrderUpdate update,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(merchant.WooCommerceUrl)
+            || string.IsNullOrWhiteSpace(merchant.WooConsumerKey)
+            || string.IsNullOrWhiteSpace(merchant.WooConsumerSecret))
+        {
+            // Nothing to push to. Not a failure: plenty of merchants are read-only to us.
+            return;
+        }
+
+        // Meta first, status second. If the status write is what fails, the order still
+        // carries the courier status the merchant's own templates read, and a retry is safe
+        // because both writes are idempotent.
+        var body = new Dictionary<string, object?>
+        {
+            ["meta_data"] = new[]
+            {
+                new { key = "_dcp_shipment_status", value = update.ShipmentStatus },
+                new { key = "_dcp_waybill", value = update.Waybill }
+            }
+        };
+        if (!string.IsNullOrWhiteSpace(update.Status)) body["status"] = update.Status;
+
+        await SendAsync(merchant, $"orders/{wooOrderId}", HttpMethod.Put, body, cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(update.CustomerNote))
+        {
+            await SendAsync(
+                merchant,
+                $"orders/{wooOrderId}/notes",
+                HttpMethod.Post,
+                new { note = update.CustomerNote, customer_note = true },
+                cancellationToken);
+        }
+    }
+
+    private async Task SendAsync(
+        Merchant merchant,
+        string path,
+        HttpMethod method,
+        object body,
+        CancellationToken cancellationToken)
+    {
+        var url = $"{merchant.WooCommerceUrl!.TrimEnd('/')}/wp-json/wc/v3/{path}";
+        using var request = new HttpRequestMessage(method, url)
+        {
+            Content = JsonContent.Create(body, options: Json)
+        };
+        var credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes(
+            $"{merchant.WooConsumerKey}:{merchant.WooConsumerSecret}"));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Basic", credentials);
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await _http.SendAsync(request, cancellationToken);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            throw new StorefrontLookupException(
+                $"Could not reach {merchant.Name}'s storefront to update order", ex);
+        }
+
+        using (response)
+        {
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new StorefrontLookupException(
+                    $"{merchant.Name}'s storefront answered {(int)response.StatusCode} "
+                    + $"when updating {path}");
+            }
         }
     }
 

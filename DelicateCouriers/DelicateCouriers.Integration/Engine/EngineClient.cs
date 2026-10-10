@@ -22,6 +22,13 @@ public sealed class EngineOptions
     /// </summary>
     public string ServiceCredential { get; set; } = string.Empty;
 
+    /// <summary>
+    /// The secret the Engine signs its outbound deliveries with, from the subscription we
+    /// registered there. Separate from <see cref="ServiceCredential"/> on purpose: verifying
+    /// what arrives needs no ability to book.
+    /// </summary>
+    public string WebhookSecret { get; set; } = string.Empty;
+
     public int TimeoutSeconds { get; set; } = 30;
 }
 
@@ -79,6 +86,12 @@ public interface IEngineClient
     Task<EngineBooking?> FindBookingByCustomerReferenceAsync(
         string accountRef,
         string customerReference,
+        CancellationToken cancellationToken);
+
+    /// <summary>One booking by its Engine id.</summary>
+    Task<EngineBooking?> GetBookingAsync(
+        string accountRef,
+        string bookingId,
         CancellationToken cancellationToken);
 
     /// <summary>The waybill for a shipment, as data to be laid out here.</summary>
@@ -182,6 +195,24 @@ public sealed class EngineClient : IEngineClient
             throw await ToExceptionAsync(response, accountRef, cancellationToken);
         }
 
+        return await response.Content.ReadFromJsonAsync<EngineBooking>(Json, cancellationToken);
+    }
+
+    public async Task<EngineBooking?> GetBookingAsync(
+        string accountRef,
+        string bookingId,
+        CancellationToken cancellationToken)
+    {
+        using var message = new HttpRequestMessage(
+            HttpMethod.Get, $"v1/service/bookings/{Uri.EscapeDataString(bookingId)}");
+        message.Headers.Add(AccountRefHeader, accountRef);
+
+        using var response = await _http.SendAsync(message, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        if (!response.IsSuccessStatusCode)
+        {
+            throw await ToExceptionAsync(response, accountRef, cancellationToken);
+        }
         return await response.Content.ReadFromJsonAsync<EngineBooking>(Json, cancellationToken);
     }
 
