@@ -227,6 +227,8 @@ public class RatesContractTests : IClassFixture<RatesContractTests.Host>
 
                 // One merchant, fixed, so the assertions describe the contract and not
                 // whatever happens to be in a settings file.
+                services.RemoveAll<IMerchantDirectory>();
+                services.AddSingleton<IMerchantDirectory, ConfiguredMerchantDirectory>();
                 services.AddSingleton<IOptions<MerchantDirectoryOptions>>(
                     Options.Create(new MerchantDirectoryOptions
                     {

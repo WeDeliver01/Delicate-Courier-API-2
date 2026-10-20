@@ -178,6 +178,8 @@ public class PluginWebhookTests : IClassFixture<PluginWebhookTests.Host>
                 services.RemoveAll<IOrderQueue>();
                 services.AddSingleton<IOrderQueue>(Queue);
 
+                services.RemoveAll<IMerchantDirectory>();
+                services.AddSingleton<IMerchantDirectory, ConfiguredMerchantDirectory>();
                 services.AddSingleton<IOptions<MerchantDirectoryOptions>>(
                     Options.Create(new MerchantDirectoryOptions
                     {

@@ -1,4 +1,5 @@
 using DelicateCouriers.Integration.Bookings;
+using DelicateCouriers.Integration.Features.Admin;
 using DelicateCouriers.Integration.Engine;
 using DelicateCouriers.Integration.Geo;
 using DelicateCouriers.Integration.Jobs;
@@ -6,6 +7,7 @@ using DelicateCouriers.Integration.Labels;
 using DelicateCouriers.Integration.Merchants;
 using DelicateCouriers.Integration.Storefront;
 using Hangfire;
+using Microsoft.EntityFrameworkCore;
 using Hangfire.PostgreSql;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,9 +16,34 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.Configure<MerchantDirectoryOptions>(
-    builder.Configuration.GetSection(MerchantDirectoryOptions.SectionName));
-builder.Services.AddSingleton<IMerchantDirectory, ConfiguredMerchantDirectory>();
+// Merchants live in a table rather than a settings file, so onboarding one is somebody doing
+// their job rather than a developer and a deploy, and every change leaves a record.
+var merchantConnection = builder.Configuration.GetConnectionString("Merchants")
+                         ?? Environment.GetEnvironmentVariable("MERCHANTS_CONNECTION")
+                         ?? builder.Configuration.GetConnectionString("Hangfire")
+                         ?? Environment.GetEnvironmentVariable("HANGFIRE_CONNECTION");
+
+if (!string.IsNullOrWhiteSpace(merchantConnection))
+{
+    builder.Services.AddDbContext<MerchantDbContext>(o => o.UseNpgsql(merchantConnection));
+    builder.Services.AddSingleton<DbMerchantDirectory>();
+    builder.Services.AddSingleton<IMerchantDirectory>(sp => sp.GetRequiredService<DbMerchantDirectory>());
+}
+else if (builder.Environment.IsEnvironment("Testing"))
+{
+    // Tests supply their own directory.
+}
+else
+{
+    throw new InvalidOperationException(
+        "No merchant storage configured. Set ConnectionStrings:Merchants (or MERCHANTS_CONNECTION).");
+}
+
+builder.Services.AddSingleton(builder.Configuration
+    .GetSection(AdminOptions.SectionName)
+    .Get<AdminOptions>() is { } admin && !string.IsNullOrWhiteSpace(admin.ApiKey)
+    ? admin
+    : new AdminOptions { ApiKey = Environment.GetEnvironmentVariable("ADMIN_API_KEY") ?? string.Empty });
 builder.Services.AddScoped<OrderBookingService>();
 builder.Services.AddScoped<BookOrderJob>();
 builder.Services.AddSingleton<ILabelRenderer, LabelRenderer>();

@@ -284,6 +284,8 @@ public class EngineWebhookTests : IClassFixture<EngineWebhookTests.Host>
                     WebhookSecret = Secret
                 });
 
+                services.RemoveAll<IMerchantDirectory>();
+                services.AddSingleton<IMerchantDirectory, ConfiguredMerchantDirectory>();
                 services.AddSingleton<IOptions<MerchantDirectoryOptions>>(
                     Options.Create(new MerchantDirectoryOptions
                     {
