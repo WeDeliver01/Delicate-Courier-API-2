@@ -80,8 +80,8 @@ public class AppDbContext : DbContext, IDataProtectionKeyContext
 
     // ----- ASP.NET Data Protection key ring -----
     // Persisted in Postgres (rather than the local filesystem) so the
-    // encryption keys survive a fresh Replit deploy and are shared across
-    // any future API replicas.
+    // encryption keys survive a fresh deploy and are shared across any
+    // future API replicas.
     public DbSet<Microsoft.AspNetCore.DataProtection.EntityFrameworkCore.DataProtectionKey> DataProtectionKeys { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

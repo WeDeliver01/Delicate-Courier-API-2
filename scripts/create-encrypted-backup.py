@@ -120,7 +120,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY NEXT_PUBLIC_SUPABASE_URL RATES_DEBUG_SECRET
 RESEND_API_KEY SESSION_SECRET SHIPLOGIC_BEARER_TOKEN SHIPLOGIC_TOKEN_TENANT_2_NEW
 SUPABASE_CONNECTION_STRING SUPABASE_JWT_SECRET SUPABASE_SERVICE_ROLE_KEY""".split()
         (content / "REQUIRED-SECRETS.txt").write_text(
-            "Values are NOT exported from Replit Secrets. Transfer separately, securely.\n"
+            "Secret VALUES are NOT exported. Transfer them separately, securely.\n"
             + "\n".join(required) + "\n")
         (content / "RESTORE.md").write_text("""# Restore instructions and coverage
 
@@ -135,7 +135,7 @@ configuration including .env files if present, uploaded assets and documents.
 Generated dependency caches, agent runtime caches, and old exports are excluded.
 See manifest.json for exclusions. External merchant WooCommerce/Shopify sites,
 Shiplogic accounts and shipments, Google settings, email-provider settings,
-DNS, and Replit/Supabase control-plane configuration are not captured by this archive.
+DNS, and Supabase control-plane configuration are not captured by this archive.
 
 ## Prerequisites and warnings
 Use a fresh, isolated Supabase-compatible PostgreSQL 17 environment. A plain
@@ -144,7 +144,7 @@ services. Consult database-inventory.json for roles and extensions required.
 Provision required roles/extensions via the destination platform; role passwords,
 Supabase project JWT/signing configuration, and provider encryption root keys
 are NOT contained in a logical database dump.
-Replit runtime secret VALUES are NOT included. Transfer the values listed in
+Runtime secret VALUES are NOT included. Transfer the values listed in
 REQUIRED-SECRETS.txt separately through secure secret management. Existing
 on-disk .env files are included but may not contain all required settings.
 If vault_secret_count is nonzero, encrypted Vault entries additionally require
@@ -176,7 +176,7 @@ Extract workspace.tar.gz into a new directory:
 Install the SDK/runtime versions required by the project and restore dependencies:
 dotnet restore in DelicateCouriers; npm ci in delicate-couriers-frontend.
 Configure a NEW database connection and auth endpoints in the isolated copy.
-Consult the root README, replit.md, .replit, replit.nix and Documentation.
+Consult the root README and Documentation.
 Preserve production credentials privately; use disabled/test integrations for testing.
 Do not start the app until the restored background-job queues are reviewed.
 
@@ -223,7 +223,7 @@ encrypted backup until recovery is confirmed.
    tar -xf backup.tar -C decrypted-backup
 6. Read decrypted-backup\\RESTORE.md before running any restore commands.
 
-IMPORTANT: Replit runtime secrets must be transferred separately. This package
+IMPORTANT: runtime secrets must be transferred separately. This package
 contains the full accessible database, not just a schema, but cannot independently
 recreate external service accounts or provider control-plane settings. No full
 restore rehearsal into another Supabase instance has been performed.

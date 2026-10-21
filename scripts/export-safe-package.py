@@ -130,7 +130,7 @@ Supply the required secrets listed in secrets.example.env through secure configu
 Replace redacted configuration placeholders with your own settings.
 Backend: cd DelicateCouriers/DelicateCouriers.ApiService && dotnet run --no-launch-profile --urls http://0.0.0.0:8080
 Frontend: cd delicate-couriers-frontend && npm run dev -- -p 5000 -H 0.0.0.0
-Consult the root README.md, replit.md, Documentation/, .replit and project configuration
+Consult the root README.md, Documentation/ and project configuration
 for setup details. Source is exported as-is; this archive does not certify a fresh restore.
 """)
         archive.writestr("backup/manifest.json", json.dumps(

@@ -417,12 +417,10 @@ FodyWeavers.xsd
 *.msm
 *.msp
 
-# Secrets and Replit leftovers
-.replit
+# Secrets
 .env.local
 *.env.local
 .env
-replit.nix
 
 
 # build output for the new integration service

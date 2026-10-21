@@ -191,12 +191,11 @@ builder.Services.AddSingleton<DelicateCouriers.ApiService.Features.Notifications
 // ====== DATA PROTECTION ======
 // Key ring persists in the same Postgres database via
 // Microsoft.AspNetCore.DataProtection.EntityFrameworkCore — using the
-// filesystem would lose keys on every fresh Replit deploy and brick every
-// merchant secret. The application name is pinned so a sibling app on the
-// same DB can't accidentally produce the same protector instance.
-// Application name defaults to the content-root path (stable on Replit
-// deploys); the key ring lives in the Postgres DataProtectionKeys table so
-// it survives fresh deploys and is shared across any future replicas.
+// filesystem would lose the keys on every fresh deploy and brick every merchant
+// secret. The application name is pinned so a sibling app on the same database
+// cannot accidentally produce the same protector instance. The key ring lives in
+// the Postgres DataProtectionKeys table, so it survives a redeploy and is shared
+// across any future replicas.
 builder.Services
     .AddDataProtection()
     .PersistKeysToDbContext<DelicateCouriers.ApiService.Data.AppDbContext>();
@@ -245,8 +244,7 @@ var allowedOrigins = builder.Configuration["CORS:AllowedOrigins"]?
         "http://localhost:5000",
         "https://app2.delicatecourier.co.za",
         "https://app2-dev.delicatecourier.co.za",
-        "https://app2-staging.delicatecourier.co.za",
-        "https://delicate-couriers-backend-test.replit.app"
+        "https://app2-staging.delicatecourier.co.za"
     };
 
 builder.Services.AddCors(options =>

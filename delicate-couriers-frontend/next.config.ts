@@ -3,15 +3,12 @@ import type { NextConfig } from "next";
 const API_PROXY_TARGET = process.env.API_PROXY_TARGET ?? "http://127.0.0.1:8080";
 
 const nextConfig: NextConfig = {
-  output: 'standalone', // Required by the Replit Deployment build/run scripts in .replit
+  // Standalone output: the VPS runs `node server.js` from .next/standalone under systemd,
+  // behind nginx. Removing this breaks the deploy, not just the build.
+  output: 'standalone',
   turbopack: {
     root: process.cwd(),
   },
-  allowedDevOrigins: [
-    process.env.REPLIT_DEV_DOMAIN ?? '',
-    '*.replit.dev',
-    '*.kirk.replit.dev',
-  ].filter(Boolean),
   async rewrites() {
     return [
       { source: '/api/:path*', destination: `${API_PROXY_TARGET}/api/:path*` },
