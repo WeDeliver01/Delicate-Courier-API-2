@@ -32,6 +32,7 @@ const navigation: NavItem[] = [
   { name: 'Shipments', href: '/shipments', icon: Package },
   { name: 'Stores', href: '/stores', icon: Store },
   { name: 'Orders', href: '/orders', icon: ShoppingCartIcon },
+  { name: 'Merchants', href: '/merchants', icon: Store, roles: ['Admin', 'SuperAdmin'] },
   { name: 'Tenants', href: '/tenants', icon: Building2, roles: ['Admin', 'SuperAdmin'] },
   { name: 'Users', href: '/users', icon: Users, roles: ['Admin', 'SuperAdmin'] },
   { name: 'Reports', href: '/reports', icon: BarChart3 },

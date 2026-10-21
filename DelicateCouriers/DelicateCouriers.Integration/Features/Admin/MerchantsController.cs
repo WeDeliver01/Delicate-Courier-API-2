@@ -148,14 +148,31 @@ public class MerchantsController : ControllerBase
         return Ok(rows);
     }
 
-    private void Record(int storeId, string action, object? detail) =>
+    /// <summary>
+    /// Who did this.
+    ///
+    /// The admin key identifies the console, not a person, which makes "who turned this
+    /// merchant off on Friday" unanswerable. The console knows — it signed the operator in —
+    /// so it says, and that is what gets recorded. It is self-reported and only as
+    /// trustworthy as the thing holding the key, which is the point of keeping that key on a
+    /// server rather than in a browser.
+    /// </summary>
+    private void Record(int storeId, string action, object? detail)
+    {
+        var actor = Request.Headers[ActorHeader].ToString();
         _db.MerchantChanges.Add(new MerchantChange
         {
             StoreId = storeId,
             Action = action,
-            ActorLabel = "admin-key",
+            ActorLabel = string.IsNullOrWhiteSpace(actor) ? "admin-key" : Trim(actor, 200),
             Detail = detail is null ? null : JsonSerializer.Serialize(detail)
         });
+    }
+
+    public const string ActorHeader = "X-Admin-Actor";
+
+    private static string Trim(string value, int max) =>
+        value.Length <= max ? value : value[..max];
 }
 
 /// <summary>
