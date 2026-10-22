@@ -1,8 +1,17 @@
 # Delicate Courier Platform — WooCommerce Plugin
 
-Version **2.0.0**. Fresh rewrite for the current Delicate Courier Platform
-(`https://api2.delicatecourier.co.za`). Single PHP file, no external
-dependencies, no Azure-era code.
+Version **2.10.0**. Single PHP file, no external dependencies.
+
+Talks to two services, on purpose:
+
+- **Orders, checkout rates and waybills** &rarr; `https://api.delicatecourier.co.za`
+  (the integration service).
+- **Licensing and plugin updates** &rarr; `https://api2.delicatecourier.co.za`
+  (the original platform, which is what issues licences and hosts update
+  packages).
+
+Each has its own optional override on the settings page. Pointing the updates
+URL at the orders URL will stop the plugin receiving updates.
 
 ## What it does
 

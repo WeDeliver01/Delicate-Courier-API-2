@@ -1,5 +1,39 @@
 # Delicate Courier Platform — WooCommerce plugin changelog
 
+## 2.10.0 (Default) — 2026-10-23
+
+### Commerce endpoints move to the integration service
+- Order push, checkout rates, waybill download and the connection test now go
+  to `https://api.delicatecourier.co.za` instead of `api2`. Nothing about the
+  requests changed — same paths, same JSON, same `X-Store-ID` +
+  `X-Plugin-Signature` HMAC. Only the host differs, which is what freezing the
+  contract in 2.1.0 was for.
+
+### Licensing and updates deliberately stay on api2
+- `/api/v1/plugins/*` (activate, deactivate, check-update, changelog,
+  heartbeat, telemetry) now resolve through a separate `dcp_update_base_url()`
+  against `https://api2.delicatecourier.co.za`. The integration service does
+  not issue licences or host update packages, so sending everything to it
+  would have stopped this plugin receiving updates — silently, since an
+  inactive licence only disables the updater and leaves orders and checkout
+  working. That failure would likely have gone unnoticed for months.
+- Both endpoints have their own optional override on the settings page, and
+  the status line now names each one rather than "Platform endpoint".
+
+### Also included: order re-sync (previously unreleased)
+- The source file in this repo had carried an unreleased change since the
+  fork: a status update on an already-synced order re-pushes to the platform
+  instead of returning early, and does so without adding a duplicate order
+  note. It was sitting under the 2.9.1 version number without ever being
+  packaged, so no merchant has it. It ships here, called out rather than
+  smuggled in under a version they already think they have.
+
+### Platform-side change shipped alongside this release
+- The integration service gained `GET /api/webhooks/plugin/health`, which the
+  "Test connection" button needs. It names itself in the response, so during
+  the cutover — when both services answer the same path — a merchant saying
+  "the test passes" means something specific.
+
 ## 2.9.1 (Default) — 2026-07-26
 
 ### Fix: update client restored (license & automatic updates)

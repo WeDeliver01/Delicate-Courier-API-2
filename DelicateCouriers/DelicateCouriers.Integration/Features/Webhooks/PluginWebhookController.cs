@@ -33,6 +33,19 @@ public class PluginWebhookController : ControllerBase
         _logger = logger;
     }
 
+    /// <summary>
+    /// The plugin's "Test connection" button. Deliberately says which service answered: during
+    /// the cutover both this and the old platform respond on the same path, and a merchant who
+    /// reports "the test passes" needs to mean something specific by it.
+    /// </summary>
+    [HttpGet("health")]
+    public IActionResult Health() => Ok(new
+    {
+        status = "healthy",
+        service = "Delicate Couriers Integration Service",
+        timestamp = DateTime.UtcNow,
+    });
+
     [HttpPost("order")]
     public async Task<IActionResult> ReceiveOrder()
     {

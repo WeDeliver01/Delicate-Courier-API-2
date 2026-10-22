@@ -3,7 +3,7 @@
  * Plugin Name: Delicate Courier Platform
  * Plugin URI:  https://delicatecourier.co.za
  * Description: WooCommerce integration for the Delicate Courier Platform. Provides live courier rates at checkout (server-side geocoded via the platform) and signed order push to the platform for automated shipment creation.
- * Version:     2.9.1
+ * Version:     2.10.0
  * Author:      Delicate Courier
  * Author URI:  https://delicatecourier.co.za
  * License:     Proprietary
@@ -23,7 +23,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Any change to anything in this block requires a coordinated change on the
  * platform side. DO NOT modify without bumping the plugin major version.
  *
- *   Platform base URL : https://api2.delicatecourier.co.za
+ *   Commerce base URL : https://api.delicatecourier.co.za
+ *   Updates base URL  : https://api2.delicatecourier.co.za
  *
  *   Order push path   : POST /api/webhooks/plugin/order
  *   Order push body   : JSON, snake_case, exactly matches the C#
@@ -58,6 +59,17 @@ if ( ! defined( 'ABSPATH' ) ) {
  *              coordinates, quote status/price/message) above the existing
  *              Shipment & Tracking section. Reads order meta only; degrades
  *              gracefully on non-DTSC stores.
+ *     v2.10.0 — NO contract change. The commerce endpoints (order push,
+ *              rates, label, health) move to the integration service at
+ *              https://api.delicatecourier.co.za. The bodies, paths, headers
+ *              and HMAC scheme are byte-for-byte unchanged — only the host
+ *              differs, which is the whole point of having frozen them.
+ *              Licensing and plugin updates (/api/v1/plugins/*) deliberately
+ *              stay on https://api2.delicatecourier.co.za: the integration
+ *              service does not issue licences or serve update packages, and
+ *              pointing everything at it would have stopped auto-updates
+ *              quietly, which is the worst way for that to fail.
+ *              Each has its own override on the settings page.
  *     v2.9.0 — adds a signed waybill download: the metabox "Download
  *              waybill (PDF)" button POSTs {"wc_order_id": <int>} to
  *              POST /api/webhooks/plugin/label with the same
@@ -105,7 +117,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * CONSTANTS
  * ========================================================================== */
 
-define( 'DCP_VERSION',         '2.9.1' );
+define( 'DCP_VERSION',         '2.10.0' );
 define( 'DCP_PLUGIN_FILE',     __FILE__ );
 define( 'DCP_PLUGIN_DIR',      plugin_dir_path( __FILE__ ) );
 define( 'DCP_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
@@ -116,7 +128,11 @@ define( 'DCP_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
 // staging, or as a fallback while DNS for the custom domain propagates.
 // Always read the active value through dcp_platform_base_url() below,
 // not through the constant directly.
-define( 'DCP_PLATFORM_BASE_URL',    'https://api2.delicatecourier.co.za' );
+define( 'DCP_PLATFORM_BASE_URL',    'https://api.delicatecourier.co.za' );
+
+// Licensing and updates still come from the original platform. See the v2.10.0
+// note in the contract block above for why this is a separate host.
+define( 'DCP_UPDATE_BASE_URL',      'https://api2.delicatecourier.co.za' );
 define( 'DCP_PLATFORM_ORDER_PATH',  '/api/webhooks/plugin/order' );
 define( 'DCP_PLATFORM_HEALTH_PATH', '/api/webhooks/plugin/health' );
 define( 'DCP_PLATFORM_RATES_PATH',  '/api/public/shipping/rates' );
@@ -1691,7 +1707,7 @@ function dcp_normalize_parcels_shape( $parcels ) {
 /**
  * PUBLIC: Fetch live courier rates with full fallback chain.
  *
- * Tier 1: Platform via api2.delicatecourier.co.za (default, server-side
+ * Tier 1: Integration service via api.delicatecourier.co.za (default, server-side
  *         geocoded, uses the tenant's Shiplogic token from platform DB).
  *         If circuit breaker is OPEN (recent failures), skip directly to T2.
  *
@@ -2984,6 +3000,22 @@ function dcp_platform_base_url() {
 }
 
 /**
+ * Returns the base URL for licensing and plugin updates (/api/v1/plugins/*).
+ *
+ * Separate from the commerce base URL on purpose. The integration service serves
+ * orders, rates and labels; it does not issue licences or host update packages.
+ * Resolved the same way: per-site override first (option: dcp_update_base_url),
+ * then the build-time constant.
+ */
+function dcp_update_base_url() {
+    $opt = trim( (string) get_option( 'dcp_update_base_url', '' ) );
+    if ( $opt !== '' && preg_match( '#^https?://#i', $opt ) ) {
+        return rtrim( $opt, '/' );
+    }
+    return DCP_UPDATE_BASE_URL;
+}
+
+/**
  * DNS bypass for hosts whose resolver can't reach the platform hostname.
  * If a merchant has set the "Platform Endpoint IP" override on the settings
  * page, hook the underlying cURL handle that WP_Http uses and pre-populate
@@ -3017,6 +3049,7 @@ function dcp_register_settings() {
         'dcp_google_maps_api_key',
         // Config
         'dcp_platform_base_url',
+        'dcp_update_base_url',
         'dcp_platform_endpoint_ip',
         'dcp_special_trip_cost_per_km',
         // Toggles
@@ -3066,6 +3099,11 @@ function dcp_render_settings_page() {
         $url_in = isset( $_POST['dcp_platform_base_url'] ) ? trim( wp_unslash( $_POST['dcp_platform_base_url'] ) ) : '';
         if ( $url_in === '' || preg_match( '#^https?://#i', $url_in ) ) {
             update_option( 'dcp_platform_base_url', $url_in === '' ? '' : esc_url_raw( $url_in ) );
+        }
+        // Updates/licensing endpoint URL — same rules as the commerce one above.
+        $upd_in = isset( $_POST['dcp_update_base_url'] ) ? trim( wp_unslash( $_POST['dcp_update_base_url'] ) ) : '';
+        if ( $upd_in === '' || preg_match( '#^https?://#i', $upd_in ) ) {
+            update_option( 'dcp_update_base_url', $upd_in === '' ? '' : esc_url_raw( $upd_in ) );
         }
         // Platform endpoint IP override (advanced, DNS bypass). Accepts IPv4
         // or IPv6; blank disables. When set, see dcp_curl_resolve_platform().
@@ -3130,7 +3168,7 @@ function dcp_render_settings_page() {
     ?>
     <div class="wrap">
         <h1><span class="dashicons dashicons-airplane" style="font-size:30px;"></span> Delicate Courier Platform</h1>
-        <p>Platform endpoint: <code><?php echo esc_html( dcp_platform_base_url() ); ?></code> &middot; Plugin version <?php echo esc_html( DCP_VERSION ); ?></p>
+        <p>Orders &amp; rates: <code><?php echo esc_html( dcp_platform_base_url() ); ?></code> &middot; Licensing &amp; updates: <code><?php echo esc_html( dcp_update_base_url() ); ?></code> &middot; Plugin version <?php echo esc_html( DCP_VERSION ); ?></p>
 
         <form method="post" action="">
             <?php wp_nonce_field( 'dcp_save_settings' ); ?>
@@ -3154,9 +3192,12 @@ function dcp_render_settings_page() {
                     <td><input name="dcp_shiplogic_provider_id" id="dcp_shiplogic_provider_id" type="text" class="regular-text" value="<?php echo esc_attr( dcp_shiplogic_provider_id() ); ?>">
                         <p class="description">Diagnostic only. The platform supplies the correct provider ID for live rates automatically.</p></td></tr>
                 <?php endif; ?>
-                <tr><th><label for="dcp_platform_base_url">Platform Endpoint URL <em>(optional)</em></label></th>
+                <tr><th><label for="dcp_platform_base_url">Orders &amp; Rates Endpoint URL <em>(optional)</em></label></th>
                     <td><input name="dcp_platform_base_url" id="dcp_platform_base_url" type="url" class="regular-text" value="<?php echo esc_attr( get_option( 'dcp_platform_base_url', '' ) ); ?>" placeholder="<?php echo esc_attr( DCP_PLATFORM_BASE_URL ); ?>">
-                        <p class="description">Leave blank to use the default (<code><?php echo esc_html( DCP_PLATFORM_BASE_URL ); ?></code>). Only change this if instructed by your platform administrator &mdash; e.g. to point at staging, or as a fallback while DNS for the custom domain propagates.</p></td></tr>
+                        <p class="description">Where orders, checkout rates and waybills are sent. Leave blank to use the default (<code><?php echo esc_html( DCP_PLATFORM_BASE_URL ); ?></code>). Only change this if instructed by your platform administrator &mdash; e.g. to point at staging, or as a fallback while DNS for the custom domain propagates.</p></td></tr>
+                <tr><th><label for="dcp_update_base_url">Licensing &amp; Updates Endpoint URL <em>(optional)</em></label></th>
+                    <td><input name="dcp_update_base_url" id="dcp_update_base_url" type="url" class="regular-text" value="<?php echo esc_attr( get_option( 'dcp_update_base_url', '' ) ); ?>" placeholder="<?php echo esc_attr( DCP_UPDATE_BASE_URL ); ?>">
+                        <p class="description">Where licence checks and plugin updates come from. This is a different service from the one above and is normally left blank (<code><?php echo esc_html( DCP_UPDATE_BASE_URL ); ?></code>). Pointing it at the orders endpoint will stop this plugin receiving updates.</p></td></tr>
                 <tr><th><label for="dcp_platform_endpoint_ip">Platform Endpoint IP <em>(advanced &mdash; DNS bypass)</em></label></th>
                     <td><input name="dcp_platform_endpoint_ip" id="dcp_platform_endpoint_ip" type="text" class="regular-text" value="<?php echo esc_attr( get_option( 'dcp_platform_endpoint_ip', '' ) ); ?>" placeholder="e.g. 34.111.179.208">
                         <p class="description"><strong>Leave blank unless your server cannot resolve the platform hostname via DNS.</strong> When set, the plugin tells cURL to connect directly to this IP for the platform host above, skipping DNS entirely. TLS (SNI &amp; certificate validation) still uses the hostname, so the connection stays secure. The IP is not contractually stable &mdash; treat this as a temporary workaround while your hosting provider fixes their DNS.</p></td></tr>
@@ -4275,7 +4316,7 @@ function dcp_uc_body( $extra = array() ) {
  *   [ 'code' => int|0, 'json' => array|null, 'error' => string|null, 'latency_ms' => int ]
  */
 function dcp_uc_post( $path, $body, $timeout = 15 ) {
-    $url   = rtrim( dcp_platform_base_url(), '/' ) . $path;
+    $url   = rtrim( dcp_update_base_url(), '/' ) . $path;
     $raw   = wp_json_encode( $body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
     $start = microtime( true );
     $res   = wp_remote_post( $url, array(
@@ -4410,7 +4451,7 @@ function dcp_uc_inject_update( $transient ) {
             'slug'         => $slug,
             'plugin'       => DCP_PLUGIN_BASENAME,
             'new_version'  => (string) $info['version'],
-            'url'          => rtrim( dcp_platform_base_url(), '/' ),
+            'url'          => rtrim( dcp_update_base_url(), '/' ),
             // Marker URL — resolved to a fresh signed URL in
             // dcp_uc_pre_download() because real tokens expire in ~60s.
             'package'      => DCP_UC_PACKAGE_MARKER . DCP_UPDATE_SLUG,
@@ -4427,7 +4468,7 @@ function dcp_uc_inject_update( $transient ) {
             'slug'        => $slug,
             'plugin'      => DCP_PLUGIN_BASENAME,
             'new_version' => DCP_VERSION,
-            'url'         => rtrim( dcp_platform_base_url(), '/' ),
+            'url'         => rtrim( dcp_update_base_url(), '/' ),
             'package'     => '',
         );
         unset( $transient->response[ DCP_PLUGIN_BASENAME ] );
@@ -4451,7 +4492,7 @@ function dcp_uc_pre_download( $reply, $package, $upgrader ) {
     }
     $url = (string) $info['download_url'];
     if ( strpos( $url, 'http' ) !== 0 ) {
-        $url = rtrim( dcp_platform_base_url(), '/' ) . ( $url[0] === '/' ? '' : '/' ) . $url;
+        $url = rtrim( dcp_update_base_url(), '/' ) . ( $url[0] === '/' ? '' : '/' ) . $url;
     }
     $file = download_url( $url, 120 );
     if ( is_wp_error( $file ) ) {
@@ -4499,7 +4540,7 @@ function dcp_uc_plugins_api( $result, $action, $args ) {
     if ( $args->slug !== $our_slug && $args->slug !== DCP_UPDATE_SLUG ) {
         return $result;
     }
-    $url = rtrim( dcp_platform_base_url(), '/' ) . DCP_UC_CHANGELOG_PATH . '?slug=' . rawurlencode( DCP_UPDATE_SLUG ) . '&limit=10';
+    $url = rtrim( dcp_update_base_url(), '/' ) . DCP_UC_CHANGELOG_PATH . '?slug=' . rawurlencode( DCP_UPDATE_SLUG ) . '&limit=10';
     $res = wp_remote_get( $url, array( 'timeout' => 10, 'headers' => array( 'Accept' => 'application/json' ) ) );
     $releases = array();
     if ( ! is_wp_error( $res ) && (int) wp_remote_retrieve_response_code( $res ) === 200 ) {
