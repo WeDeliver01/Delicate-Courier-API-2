@@ -19,30 +19,36 @@ ssh root@45.77.227.115 'systemctl stop delicate-integration \
 
 ## The database
 
-`MERCHANTS_CONNECTION` and `HANGFIRE_CONNECTION` point at the Engine's
-production Postgres, the container `delicate-prod-postgres-1`.
+`MERCHANTS_CONNECTION` and `HANGFIRE_CONNECTION` point at
+`127.0.0.1:5433`, which is the Engine's production Postgres
+(`delicate-prod-postgres-1`) published on loopback only. That binding was added
+to the Engine's compose on 2026-10-22 and the container recreated during a
+no-traffic window; the data is on the named volume `delicate-prod_pgdata`, so
+recreating it does not touch the data. A `pg_dumpall` was taken first.
 
-That container publishes no port. Adding one means recreating it, and
-`delicatecourier.co.za` is served by the same stack — so that is a scheduled
-change, not a casual one. Until then the host can reach it directly on the
-docker network, but **a container address changes every time the Engine is
-redeployed**, and the service will fail to start afterwards until the address
-is corrected.
-
-The durable fix, in preference order:
-
-1. Add `ports: ["127.0.0.1:5433:5432"]` to the Engine's compose and recreate
-   only the postgres service, during a window. Stable forever.
-2. Run a forwarder container on the Engine's network publishing
-   `127.0.0.1:5433`. Resolves postgres by container name, so it survives
-   redeploys, and recreates nothing.
+The service uses its own database, `delicate_integration`, on that instance —
+the same server, not the same database. These tables belong to a different
+service with a different lifecycle.
 
 ## Schema
 
-The `merchants` and `merchant_changes` tables come from the EF migration
-`20261020185044_AddMerchants`. It has not been applied yet — the service will
-start and fail its first database call until it is.
+From the EF migration `20261020185044_AddMerchants`, applied as idempotent SQL
+so the server needs no EF tooling:
 
 ```bash
-dotnet ef database update --project DelicateCouriers/DelicateCouriers.Integration
+dotnet ef migrations script --idempotent   --project DelicateCouriers/DelicateCouriers.Integration   --context MerchantDbContext -o schema.sql
+psql -h 127.0.0.1 -p 5433 -U delicate -d delicate_integration -v ON_ERROR_STOP=1 -f schema.sql
 ```
+
+## Still outstanding
+
+`ENGINE_SERVICE_CREDENTIAL` is empty. It is not copied from a config file — the
+Engine issues it and keeps only a hash:
+
+```
+POST /v1/admin/service-clients     (Engine, super_admin)
+```
+
+The response shows `dsk_<keyId>_<secret>` once. Put it in
+`/etc/delicate/integration.env` and restart. Until then health, rates and
+signature checks work, and anything that books through the Engine fails auth.

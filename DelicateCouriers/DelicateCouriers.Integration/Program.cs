@@ -18,10 +18,11 @@ builder.Services.AddSwaggerGen();
 
 // Merchants live in a table rather than a settings file, so onboarding one is somebody doing
 // their job rather than a developer and a deploy, and every change leaves a record.
-var merchantConnection = builder.Configuration.GetConnectionString("Merchants")
-                         ?? Environment.GetEnvironmentVariable("MERCHANTS_CONNECTION")
-                         ?? builder.Configuration.GetConnectionString("Hangfire")
-                         ?? Environment.GetEnvironmentVariable("HANGFIRE_CONNECTION");
+var merchantConnection = FirstConfigured(
+    builder.Configuration.GetConnectionString("Merchants"),
+    Environment.GetEnvironmentVariable("MERCHANTS_CONNECTION"),
+    builder.Configuration.GetConnectionString("Hangfire"),
+    Environment.GetEnvironmentVariable("HANGFIRE_CONNECTION"));
 
 if (!string.IsNullOrWhiteSpace(merchantConnection))
 {
@@ -81,8 +82,9 @@ builder.Services.AddHttpClient<IStorefront, WooStorefront>(http =>
 // The order queue must survive a restart, so it is Postgres-backed. Refusing to start without
 // it is deliberate: the alternative is a service that looks healthy, accepts orders and
 // quietly drops them, which is the worst of the available failures.
-var hangfireConnection = builder.Configuration.GetConnectionString("Hangfire")
-                         ?? Environment.GetEnvironmentVariable("HANGFIRE_CONNECTION");
+var hangfireConnection = FirstConfigured(
+    builder.Configuration.GetConnectionString("Hangfire"),
+    Environment.GetEnvironmentVariable("HANGFIRE_CONNECTION"));
 
 if (!string.IsNullOrWhiteSpace(hangfireConnection))
 {
@@ -117,6 +119,16 @@ app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 app.MapControllers();
 
 app.Run();
+
+/// <summary>
+/// The first candidate that is actually set.
+///
+/// Not <c>??</c>: appsettings.json ships these keys as empty strings, and an empty string is
+/// not null, so a coalescing chain stops there and never reaches the environment. That made
+/// MERCHANTS_CONNECTION impossible to set by the very name the startup error tells you to use.
+/// </summary>
+static string? FirstConfigured(params string?[] candidates) =>
+    Array.Find(candidates, c => !string.IsNullOrWhiteSpace(c));
 
 /// <summary>Named so an integration test host can reference this assembly.</summary>
 public partial class Program;
