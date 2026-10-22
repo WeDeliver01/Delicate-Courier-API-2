@@ -138,6 +138,10 @@ public class BookOrderJobTests
 
     private sealed class StubEngine : IEngineClient
     {
+
+        public Task<EngineAccountStatus> CheckAccountAsync(
+            string accountRef, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("this stub is not used for readiness checks");
         public List<EngineBookingRequest> Booked { get; } = new();
         public EngineCallException? Throw { get; set; }
 

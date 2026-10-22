@@ -40,15 +40,35 @@ dotnet ef migrations script --idempotent   --project DelicateCouriers/DelicateCo
 psql -h 127.0.0.1 -p 5433 -U delicate -d delicate_integration -v ON_ERROR_STOP=1 -f schema.sql
 ```
 
-## Still outstanding
+## Onboarding a merchant
 
-`ENGINE_SERVICE_CREDENTIAL` is empty. It is not copied from a config file — the
-Engine issues it and keeps only a hash:
+Creating one in the console is not enough on its own. The Engine needs two more
+things, and neither can be created from here — both are super_admin-only, and a
+service credential can never reach an admin route, by design:
 
-```
-POST /v1/admin/service-clients     (Engine, super_admin)
-```
+1. **Map their reference to an account**
+   `POST /v1/admin/account-external-refs`, with `system` set to
+   `integration-service` (the service client's slug — the Engine matches on its
+   own slug, never on a value the caller sends) and `externalId` set to the
+   merchant's `engineAccountRef`.
+2. **Grant that account to this service**
+   `PATCH /v1/admin/service-clients/{id}` on the `integration-service` client,
+   adding the account to `accountIds`.
 
-The response shows `dsk_<keyId>_<secret>` once. Put it in
-`/etc/delicate/integration.env` and restart. Until then health, rates and
-signature checks work, and anything that books through the Engine fails auth.
+The console will tell you which of these is missing. Each merchant's page calls
+`GET /api/admin/merchants/{storeId}/engine-readiness`, which makes a real
+authorised call to the Engine and reports back, with the fix. Without it a
+merchant looks perfectly configured until a shopper reaches checkout and is
+offered no delivery option.
+
+## The service credential
+
+`ENGINE_SERVICE_CREDENTIAL` holds a `dsk_<keyId>_<secret>` issued by the Engine
+(`POST /v1/admin/service-clients`), with five scopes: `quotes:write`,
+`bookings:write`, `bookings:read`, `shipments:read`, `labels:read`. Not
+`bookings:cancel` — nothing here cancels a booking, and a standing credential
+that can is a different thing to leave in an env file.
+
+If it is ever rejected, every merchant's readiness check reports
+`CredentialRejected` rather than blaming the merchant. Rotate with
+`POST /v1/admin/service-clients/{id}/rotate` and update the env file.

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { AppLayout } from '@/components/layout/app-layout'
 import { MerchantForm, type MerchantFormValues } from '@/components/merchants/merchant-form'
-import { merchants, type Merchant, type MerchantChange } from '@/lib/merchants'
+import { merchants, type Merchant, type MerchantChange, type EngineReadiness } from '@/lib/merchants'
 
 /**
  * One merchant: edit, rotate, switch off, and see what has been done to them.
@@ -24,13 +24,19 @@ export default function MerchantPage({ params }: { params: Promise<{ storeId: st
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [rotated, setRotated] = useState<string | null>(null)
+  const [readiness, setReadiness] = useState<EngineReadiness | null>(null)
 
   const load = async () => {
     setLoading(true)
     try {
-      const [m, c] = await Promise.all([merchants.get(storeId), merchants.changes(storeId)])
+      const [m, c, r] = await Promise.all([
+        merchants.get(storeId),
+        merchants.changes(storeId),
+        merchants.engineReadiness(storeId).catch(() => null),
+      ])
       setMerchant(m)
       setChanges(c)
+      setReadiness(r)
     } catch {
       setError('Could not load this merchant.')
     } finally {
@@ -152,6 +158,31 @@ export default function MerchantPage({ params }: { params: Promise<{ storeId: st
         {error && (
           <Card>
             <CardContent className="py-3 text-sm text-red-600">{error}</CardContent>
+          </Card>
+        )}
+
+        {readiness && !readiness.canBook && (
+          <Card className="border-amber-300 bg-amber-50">
+            <CardHeader>
+              <CardTitle className="text-base text-amber-900">
+                This merchant cannot book yet
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-amber-900">
+              <p>
+                Everything on this page is saved, but the Engine will refuse their orders. A
+                shopper would reach checkout and get no delivery option.
+              </p>
+              <p className="font-medium">{readiness.detail}</p>
+              {readiness.remedy && (
+                <div>
+                  <p className="mb-1 text-amber-800">To fix it:</p>
+                  <code className="block overflow-x-auto rounded bg-amber-100 p-3 font-mono text-xs">
+                    {readiness.remedy}
+                  </code>
+                </div>
+              )}
+            </CardContent>
           </Card>
         )}
 

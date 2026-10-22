@@ -171,6 +171,10 @@ public class RatesContractTests : IClassFixture<RatesContractTests.Host>
 
     public sealed class StubEngine : IEngineClient
     {
+
+        public Task<EngineAccountStatus> CheckAccountAsync(
+            string accountRef, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("this stub is not used for readiness checks");
         public Func<QuoteCall, EngineQuote> Quote { get; set; } =
             _ => throw new InvalidOperationException("no stub configured");
 

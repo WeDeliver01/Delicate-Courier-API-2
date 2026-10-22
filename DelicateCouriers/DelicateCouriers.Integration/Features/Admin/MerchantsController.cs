@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using DelicateCouriers.Integration.Engine;
 using DelicateCouriers.Integration.Merchants;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -20,15 +21,18 @@ public class MerchantsController : ControllerBase
 {
     private readonly MerchantDbContext _db;
     private readonly DbMerchantDirectory _directory;
+    private readonly IEngineClient _engine;
     private readonly ILogger<MerchantsController> _logger;
 
     public MerchantsController(
         MerchantDbContext db,
         DbMerchantDirectory directory,
+        IEngineClient engine,
         ILogger<MerchantsController> logger)
     {
         _db = db;
         _directory = directory;
+        _engine = engine;
         _logger = logger;
     }
 
@@ -48,6 +52,62 @@ public class MerchantsController : ControllerBase
             .FirstOrDefaultAsync(m => m.StoreId == storeId, cancellationToken);
         return row is null ? NotFound(new { error = "Merchant not found" }) : Ok(MerchantView.Of(row));
     }
+
+    /// <summary>
+    /// Whether the Engine will actually accept orders for this merchant.
+    ///
+    /// Onboarding here is only half of it. The Engine also needs the merchant's reference
+    /// mapped to an account, and that account granted to this service's credential — both
+    /// super_admin-only, so this service can see they are missing but cannot create them.
+    /// Without this check a merchant looks perfectly configured until a shopper's first order
+    /// fails at checkout, which is the worst possible place to find out.
+    ///
+    /// A live call, so it is its own endpoint rather than a field on the list.
+    /// </summary>
+    [HttpGet("{storeId:int}/engine-readiness")]
+    public async Task<ActionResult<EngineReadinessView>> GetEngineReadiness(
+        int storeId, CancellationToken cancellationToken)
+    {
+        var row = await _db.Merchants.AsNoTracking()
+            .FirstOrDefaultAsync(m => m.StoreId == storeId, cancellationToken);
+        if (row is null) return NotFound(new { error = "Merchant not found" });
+
+        var status = await _engine.CheckAccountAsync(row.EngineAccountRef, cancellationToken);
+
+        return Ok(new EngineReadinessView(
+            status.Readiness.ToString(),
+            status.CanBook,
+            status.Detail,
+            RemedyFor(status.Readiness, row.EngineAccountRef)));
+    }
+
+    /// <summary>
+    /// What an operator should actually do about it.
+    ///
+    /// The fix is two calls against the Engine's admin API by someone holding super_admin, so
+    /// the honest answer is the calls themselves rather than a button that cannot work.
+    /// </summary>
+    private static string? RemedyFor(EngineReadiness readiness, string accountRef) => readiness switch
+    {
+        EngineReadiness.Ready => null,
+
+        EngineReadiness.NoAccountMapping =>
+            "Map this merchant to an Engine account: POST /v1/admin/account-external-refs "
+            + $"with system \"integration-service\" and externalId \"{accountRef}\". Needs super_admin.",
+
+        EngineReadiness.NotGrantedToCredential =>
+            "Grant the account to this service: PATCH /v1/admin/service-clients/{id} on the "
+            + "\"integration-service\" client, adding the account to accountIds. Needs super_admin.",
+
+        EngineReadiness.AccountNotActive =>
+            "The Engine account is suspended or closed. Reactivate it in the Engine.",
+
+        EngineReadiness.CredentialRejected =>
+            "ENGINE_SERVICE_CREDENTIAL is wrong or revoked. Rotate it: "
+            + "POST /v1/admin/service-clients/{id}/rotate, then update the service's env file.",
+
+        _ => "Check the Engine is reachable and read the detail above.",
+    };
 
     /// <summary>
     /// Onboard a merchant. The response carries the generated webhook secret, which is what
@@ -182,6 +242,19 @@ public class MerchantsController : ControllerBase
 /// needed to verify and to call, never to display, and a console that renders them puts them
 /// in a browser, a screenshot and a support ticket.
 /// </summary>
+/// <summary>
+/// Whether the Engine will take orders for a merchant, and what to do if not.
+/// </summary>
+/// <param name="State">The machine-readable state, for the console to branch on.</param>
+/// <param name="CanBook">The one thing an operator actually wants to know.</param>
+/// <param name="Detail">What the Engine said, in words.</param>
+/// <param name="Remedy">The fix, or null when there is nothing to fix.</param>
+public sealed record EngineReadinessView(
+    string State,
+    bool CanBook,
+    string Detail,
+    string? Remedy);
+
 public sealed record MerchantView(
     int StoreId,
     string Name,

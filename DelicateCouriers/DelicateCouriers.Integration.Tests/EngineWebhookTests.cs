@@ -235,6 +235,10 @@ public class EngineWebhookTests : IClassFixture<EngineWebhookTests.Host>
 
     public sealed class StubEngine : IEngineClient
     {
+
+        public Task<EngineAccountStatus> CheckAccountAsync(
+            string accountRef, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("this stub is not used for readiness checks");
         public string? CustomerReference { get; set; } = "WC-49905";
 
         public Task<EngineQuote> CreateQuoteAsync(

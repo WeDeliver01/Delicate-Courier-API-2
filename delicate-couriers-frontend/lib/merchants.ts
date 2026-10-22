@@ -105,6 +105,25 @@ export const emptyMerchant = (): Partial<Merchant> => ({
   collection: blankAddress(),
 })
 
+/**
+ * Whether the Engine will actually take orders for a merchant.
+ *
+ * Separate from the merchant record because it is a live call to another system, and because
+ * the two things it depends on are created in the Engine by a super_admin, not here.
+ */
+export interface EngineReadiness {
+  state:
+    | 'Ready'
+    | 'NoAccountMapping'
+    | 'NotGrantedToCredential'
+    | 'AccountNotActive'
+    | 'CredentialRejected'
+    | 'Unknown'
+  canBook: boolean
+  detail: string
+  remedy: string | null
+}
+
 export const merchants = {
   list: () => integration.get<Merchant[]>('').then((r) => r.data),
   get: (storeId: number) => integration.get<Merchant>(`${storeId}`).then((r) => r.data),
@@ -117,6 +136,10 @@ export const merchants = {
     integration.post<Merchant>(`${storeId}/deactivate`).then((r) => r.data),
   changes: (storeId: number) =>
     integration.get<MerchantChange[]>(`${storeId}/changes`).then((r) => r.data),
+  engineReadiness: (storeId: number) =>
+    integration
+      .get<EngineReadiness>(`${storeId}/engine-readiness`)
+      .then((r) => r.data),
 }
 
 export default integration

@@ -57,8 +57,55 @@ public sealed class EngineCallException : Exception
     public bool IsTransient => (int)Status >= 500 || Status == HttpStatusCode.RequestTimeout;
 }
 
+/// <summary>
+/// Whether this service can actually act for a merchant's Engine account.
+///
+/// Two things have to exist in the Engine before a merchant can book, and neither is created
+/// by onboarding them here: a mapping from their reference to an Engine account, and a grant
+/// of that account to this service's credential. Both are deliberately super_admin-only — a
+/// credential cannot grant itself authority — so this service can detect them but not fix
+/// them. Detecting them at onboarding is the difference between an operator seeing a problem
+/// on the merchant's own page and a shopper's first order failing at checkout.
+/// </summary>
+public enum EngineReadiness
+{
+    /// <summary>The Engine accepted a call made for this merchant.</summary>
+    Ready,
+
+    /// <summary>No account is mapped to this merchant's reference.</summary>
+    NoAccountMapping,
+
+    /// <summary>The account exists but this credential was never granted it.</summary>
+    NotGrantedToCredential,
+
+    /// <summary>The Engine knows the account and it is not active.</summary>
+    AccountNotActive,
+
+    /// <summary>The credential itself was rejected.</summary>
+    CredentialRejected,
+
+    /// <summary>The Engine could not be reached, or answered in a way not understood.</summary>
+    Unknown,
+}
+
+public sealed record EngineAccountStatus(EngineReadiness Readiness, string Detail)
+{
+    public bool CanBook => Readiness == EngineReadiness.Ready;
+}
+
 public interface IEngineClient
 {
+    /// <summary>
+    /// Ask the Engine whether this service may act for a merchant, without booking anything.
+    ///
+    /// Uses an ordinary read, because the point is to exercise the same authorisation path a
+    /// real order takes. A merchant with nothing booked answers "nothing found", which is the
+    /// success case here.
+    /// </summary>
+    Task<EngineAccountStatus> CheckAccountAsync(
+        string accountRef,
+        CancellationToken cancellationToken);
+
     /// <summary>
     /// Price a job without booking it. <paramref name="accountRef"/> is the merchant's own
     /// identifier for itself, which the Engine resolves to an account.
@@ -247,6 +294,93 @@ public sealed class EngineClient : IEngineClient
     /// something else entirely, so a body that will not parse must not itself become the
     /// failure — the status code is still useful on its own.
     /// </summary>
+    public async Task<EngineAccountStatus> CheckAccountAsync(
+        string accountRef,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(accountRef))
+        {
+            return new EngineAccountStatus(
+                EngineReadiness.NoAccountMapping,
+                "This merchant has no Engine account reference set.");
+        }
+
+        try
+        {
+            // A reference no booking will ever use, so a hit is impossible and the answer is
+            // always about authorisation rather than data.
+            await FindBookingByCustomerReferenceAsync(
+                accountRef, "engine-readiness-probe", cancellationToken);
+
+            return new EngineAccountStatus(
+                EngineReadiness.Ready,
+                "The Engine accepts calls for this merchant.");
+        }
+        catch (EngineCallException ex)
+        {
+            return Classify(ex);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Engine readiness check failed for accountRef={AccountRef}", accountRef);
+            return new EngineAccountStatus(
+                EngineReadiness.Unknown,
+                "The Engine could not be reached: " + ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Works out which of the Engine's refusals this is.
+    ///
+    /// On the message, not the code, because the Engine answers all of these with "forbidden".
+    /// That is matching on prose and will break if the wording changes, so an unrecognised
+    /// refusal reports Unknown and carries the Engine's own text rather than guessing. The
+    /// durable fix is distinct codes in the Engine; this reads them until there are.
+    /// </summary>
+    private static EngineAccountStatus Classify(EngineCallException ex)
+    {
+        if (ex.Status == HttpStatusCode.Unauthorized)
+        {
+            return new EngineAccountStatus(
+                EngineReadiness.CredentialRejected,
+                "The Engine rejected this service's credential.");
+        }
+
+        var message = ex.Message ?? string.Empty;
+
+        if (message.Contains("no account is mapped", StringComparison.OrdinalIgnoreCase))
+        {
+            return new EngineAccountStatus(
+                EngineReadiness.NoAccountMapping,
+                "No Engine account is mapped to this merchant's reference.");
+        }
+
+        if (message.Contains("may not act for that account", StringComparison.OrdinalIgnoreCase))
+        {
+            return new EngineAccountStatus(
+                EngineReadiness.NotGrantedToCredential,
+                "The Engine account exists, but this service was never granted it.");
+        }
+
+        if (message.Contains("account is not active", StringComparison.OrdinalIgnoreCase))
+        {
+            return new EngineAccountStatus(
+                EngineReadiness.AccountNotActive,
+                "The Engine account is not active.");
+        }
+
+        if (message.Contains("unknown account", StringComparison.OrdinalIgnoreCase))
+        {
+            return new EngineAccountStatus(
+                EngineReadiness.NoAccountMapping,
+                "The mapped Engine account no longer exists.");
+        }
+
+        return new EngineAccountStatus(
+            EngineReadiness.Unknown,
+            $"The Engine refused the call ({(int)ex.Status} {ex.Code}): {message}");
+    }
+
     private async Task<EngineCallException> ToExceptionAsync(
         HttpResponseMessage response,
         string accountRef,

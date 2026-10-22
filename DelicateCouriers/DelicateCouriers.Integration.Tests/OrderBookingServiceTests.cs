@@ -271,6 +271,10 @@ public class OrderBookingServiceTests
 
     private sealed class RecordingEngine : IEngineClient
     {
+
+        public Task<EngineAccountStatus> CheckAccountAsync(
+            string accountRef, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("this stub is not used for readiness checks");
         public List<BookingCall> Bookings { get; } = new();
         public List<string> Lookups { get; } = new();
         public Dictionary<string, EngineBooking> ExistingByReference { get; } = new();
