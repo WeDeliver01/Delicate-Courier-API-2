@@ -106,6 +106,49 @@ def supabase(env: dict[str, str], method: str, path: str, body: dict | None = No
         sys.exit(f"Supabase {method} {path} failed: HTTP {exc.code} {detail}")
 
 
+def find_supabase_user(env: dict[str, str], email: str) -> str | None:
+    """The Supabase id for an address, or None. Paged, because the admin list is."""
+    page = 1
+    while page <= 20:
+        result = supabase(env, "GET", f"/auth/v1/admin/users?page={page}&per_page=200")
+        users = result.get("users", [])
+        if not users:
+            return None
+        for user in users:
+            if (user.get("email") or "").lower() == email:
+                return user.get("id")
+        page += 1
+    return None
+
+
+def set_password(env: dict[str, str], email: str) -> None:
+    """
+    Set the password on an account that already exists.
+
+    This exists because the portal has no forgot-password page. The API delegates
+    reset to "Supabase directly from the client", and that page was never built,
+    so an account with no password has no way in and an account whose password is
+    forgotten has no way back. Until that is built, this is the only route.
+
+    The password is typed here and goes straight to Supabase. It is never printed,
+    never passed as an argument and never stored, so it stays out of shell history
+    and out of the process list.
+    """
+    user_id = find_supabase_user(env, email)
+    if not user_id:
+        sys.exit(f"No Supabase user for {email} in this project.")
+
+    print(f"Setting the password for {email} ({user_id}).")
+    password = getpass.getpass("New password (not echoed): ")
+    if len(password) < 12:
+        sys.exit("Refusing a password under 12 characters for an admin account.")
+    if password != getpass.getpass("Repeat it: "):
+        sys.exit("They did not match. Nothing was changed.")
+
+    supabase(env, "PUT", f"/auth/v1/admin/users/{user_id}", {"password": password})
+    print("Done. Sign in at https://app.delicatecourier.co.za/login")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--email", required=True)
@@ -115,6 +158,15 @@ def main() -> None:
         "--tenant-id",
         type=int,
         help="Tenant to attach to. Omit to list the available ones and stop.",
+    )
+    parser.add_argument(
+        "--set-password",
+        action="store_true",
+        help=(
+            "Set the password on an account that already exists, and do nothing else. "
+            "The portal has no forgot-password page, so an account created without one "
+            "cannot otherwise be got into."
+        ),
     )
     parser.add_argument(
         "--no-password",
@@ -139,6 +191,10 @@ def main() -> None:
 
     db = pg_env(env["SUPABASE_CONNECTION_STRING"])
     email = args.email.strip().lower()
+
+    if args.set_password:
+        set_password(env, email)
+        return
 
     # Nothing is created before this. A second row for an address that already
     # has one would fail on the unique index anyway, but failing here says why.
