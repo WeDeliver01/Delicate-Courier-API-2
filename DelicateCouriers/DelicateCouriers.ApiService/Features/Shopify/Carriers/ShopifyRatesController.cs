@@ -1,3 +1,4 @@
+using DelicateCouriers.ApiService.Features.Delivery;
 // Features/Shopify/Carriers/ShopifyRatesController.cs
 //
 // ============================================================================
@@ -33,8 +34,8 @@ using DelicateCouriers.ApiService.Features.Shopify.DTOs;
 using DelicateCouriers.ApiService.Infrastructure;
 using DelicateCouriers.ApiService.Infrastructure.Geocoding;
 using DelicateCouriers.Features.Shipping.SpecialTrip;
-using DelicateCouriers.Features.Shiplogic;
-using DelicateCouriers.Features.Shiplogic.DTOs;
+using DelicateCouriers.ApiService.Features.Delivery;
+using DelicateCouriers.ApiService.Features.Delivery.Shapes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -55,20 +56,20 @@ public class ShopifyRatesController : ControllerBase
     public const string SpecialTripServiceCode = "SPECIAL_TRIP";
 
     private readonly AppDbContext _context;
-    private readonly IShiplogicService _shiplogicService;
+    private readonly IDeliveryService _delivery;
     private readonly IGeocoder _geocoder;
     private readonly ISpecialTripQuoter _specialTripQuoter;
     private readonly ILogger<ShopifyRatesController> _logger;
 
     public ShopifyRatesController(
         AppDbContext context,
-        IShiplogicService shiplogicService,
+        IDeliveryService delivery,
         IGeocoder geocoder,
         ISpecialTripQuoter specialTripQuoter,
         ILogger<ShopifyRatesController> logger)
     {
         _context = context;
-        _shiplogicService = shiplogicService;
+        _delivery = delivery;
         _geocoder = geocoder;
         _specialTripQuoter = specialTripQuoter;
         _logger = logger;
@@ -161,25 +162,66 @@ public class ShopifyRatesController : ControllerBase
 
             var parcels = BuildParcelsFromShopifyItems(request.Rate.Items);
 
-            // 4. Call Shiplogic. We use the WithDiagnostics variant so that
-            //    if rates come back empty we have visibility into why. Cap the
-            //    upstream call at 7 seconds to stay inside Shopify's 10s
-            //    deadline with headroom for our own mapping work.
+            // 4. Price it through the Engine, in the same shape the WooCommerce path uses.
+            //    Shopify needs no vocabulary of its own: a collection, a delivery and some
+            //    parcels is a delivery whatever sold it, and one request shape means one
+            //    thing to change when the Engine changes.
+            //
+            //    Still capped at 7 seconds. Shopify gives a carrier service 10 to answer and
+            //    drops it otherwise, so the headroom is for our own mapping, not politeness.
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(HttpContext.RequestAborted);
             cts.CancelAfter(TimeSpan.FromSeconds(7));
-            var (rateResponse, diagnostics) = await _shiplogicService.GetRatesWithDiagnosticsAsync(
-                bearer,
-                collectionAddress,
-                deliveryAddress,
-                parcels,
-                serviceLevelCode: null,
-                cancellationToken: cts.Token);
+
+            RateResponseDto? rateResponse = null;
+            try
+            {
+                var engineQuote = await _delivery.QuoteAsync(new DeliveryRequest
+                {
+                    AccountRef = store.EngineAccountRef,
+                    CustomerReference = $"shopify-rates-{storeId}",
+                    ServiceLevelCode = store.DefaultServiceLevel,
+                    Collection = DeliveryRequestFactory.StopFrom(collectionAddress),
+                    Delivery = DeliveryRequestFactory.StopFrom(deliveryAddress),
+                    Parcels = parcels.Select(p => new DeliveryParcel
+                    {
+                        PackageTypeId = store.EnginePackageTypeId,
+                        Quantity = p.ParcelCount <= 0 ? 1 : p.ParcelCount,
+                        WeightKg = p.Weight,
+                        Description = p.Description,
+                    }).ToList(),
+                }, cts.Token);
+
+                rateResponse = new RateResponseDto
+                {
+                    Rates = new List<ShippingRateDto>
+                    {
+                        new()
+                        {
+                            Rate = engineQuote.TotalAmount,
+                            ServiceLevel = new ServiceLevelDto
+                            {
+                                Code = store.DefaultServiceLevel,
+                                Name = store.CheckoutRateLabel ?? "Delicate Courier Delivery",
+                            },
+                        },
+                    },
+                };
+            }
+            catch (Exception ex)
+            {
+                // A checkout is waiting. No rate is a worse answer than a slow one, but an
+                // exception here would be no answer at all — Shopify shows the customer
+                // nothing and the sale is lost. Fall through to the special-trip fallback.
+                _logger.LogWarning(ex,
+                    "Engine could not price Shopify rates for store {StoreId} to {Postcode}",
+                    storeId, deliveryAddress.PostalCode);
+            }
 
             if (rateResponse?.Rates == null || rateResponse.Rates.Count == 0)
             {
                 _logger.LogWarning(
-                    "Shiplogic returned no rates for store {StoreId} to {Postcode}. Diagnostic: {Diag}",
-                    storeId, deliveryAddress.PostalCode, diagnostics?.RawResponseBody);
+                    "No rates for Shopify store {StoreId} to {Postcode}",
+                    storeId, deliveryAddress.PostalCode);
 
                 // Fallback: offer a distance-priced "Special Trip" rate when
                 // the merchant has enabled it (SpecialTripCostPerKm set).

@@ -1,3 +1,4 @@
+using DelicateCouriers.ApiService.Features.Delivery;
 using DelicateCouriers.ApiService.Data;
 using DelicateCouriers.ApiService.Features.WooCommerce.DTOs;
 using DelicateCouriers.ApiService.Infrastructure.Services;
@@ -190,8 +191,8 @@ namespace DelicateCouriers.ApiService.Features.WooCommerce
         /// </summary>
         [HttpPost("label")]
         public async Task<IActionResult> DownloadLabel(
-            [FromServices] DelicateCouriers.Features.Shiplogic.LabelService labelService,
-            [FromServices] DelicateCouriers.Features.Shiplogic.IShiplogicService shiplogicService)
+            [FromServices] DelicateCouriers.ApiService.Features.Delivery.LabelService labelService,
+            [FromServices] IDeliveryService delivery)
         {
             try
             {
@@ -267,12 +268,15 @@ namespace DelicateCouriers.ApiService.Features.WooCommerce
                         .IgnoreQueryFilters()
                         .AsNoTracking()
                         .FirstOrDefaultAsync(t => t.TenantID == store.TenantID);
-                    if (tenant != null && !string.IsNullOrWhiteSpace(tenant.ShiplogicBearerToken))
+                    // No per-tenant courier token to check for any more. What a label needs
+                    // is the store's Engine account, and the credential that reaches the
+                    // Engine lives in one service rather than on every tenant row.
+                    if (!string.IsNullOrWhiteSpace(store.EngineAccountRef))
                     {
                         try
                         {
-                            pdfBytes = await shiplogicService.GetLabelAsync(
-                                tenant.ShiplogicBearerToken, shipment.ConsignmentID);
+                            pdfBytes = await delivery.GetLabelAsync(
+                                store.EngineAccountRef, shipment.ConsignmentID);
                             // The parse to int was there because ShipLogic numbered its
                             // shipments. The Engine uses uuids, and the id is only ever a
                             // filename here, so it travels as text and no longer silently

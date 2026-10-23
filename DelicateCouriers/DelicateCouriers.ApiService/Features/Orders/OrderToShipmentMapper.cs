@@ -1,5 +1,5 @@
 using DelicateCouriers.Domain.Entities;
-using DelicateCouriers.Features.Shiplogic.DTOs;
+using DelicateCouriers.ApiService.Features.Delivery.Shapes;
 using DelicateCouriers.ApiService.Features.Packaging;
 using DelicateCouriers.ApiService.Infrastructure;
 using DelicateCouriers.ApiService.Infrastructure.Geocoding;

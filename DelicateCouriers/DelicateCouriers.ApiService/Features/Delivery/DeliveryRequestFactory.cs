@@ -1,4 +1,4 @@
-using DelicateCouriers.Features.Shiplogic.DTOs;
+using DelicateCouriers.ApiService.Features.Delivery.Shapes;
 
 namespace DelicateCouriers.ApiService.Features.Delivery;
 
@@ -41,6 +41,16 @@ public static class DeliveryRequestFactory
                 : null,
         };
     }
+
+    /// <summary>
+    /// One end of a job, for callers that hang the contact off the address.
+    ///
+    /// The rate controllers build it that way because ShipLogic's payload nested it; the
+    /// booking path keeps them separate. Both arrive at the same place rather than each
+    /// growing its own translation.
+    /// </summary>
+    public static DeliveryStop StopFrom(AddressDto address, ContactDto? contact = null) =>
+        ToStop(address, contact ?? address.Contact ?? new ContactDto { Name = string.Empty });
 
     private static DeliveryStop ToStop(AddressDto address, ContactDto contact) => new()
     {

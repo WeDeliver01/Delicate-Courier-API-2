@@ -2,14 +2,13 @@ using DelicateCouriers.ApiService.Features.Delivery;
 using DelicateCouriers.ApiService.Data;
 using DelicateCouriers.ApiService.Features.Orders;
 using DelicateCouriers.ApiService.Features.Packaging;
-using DelicateCouriers.ApiService.Features.Shiplogic;
 using DelicateCouriers.ApiService.Features.Shipments;
 using DelicateCouriers.ApiService.Features.WooCommerce;
 using DelicateCouriers.ApiService.Infrastructure.Auth;
 using DelicateCouriers.ApiService.Infrastructure.Geocoding;
 using DelicateCouriers.ApiService.Infrastructure.Services;
 using DelicateCouriers.Features.Reports;
-using DelicateCouriers.Features.Shiplogic;
+using DelicateCouriers.ApiService.Features.Delivery;
 using DelicateCouriers.Features.Tenants;
 using DelicateCouriers.Features.Users;
 using Hangfire;
@@ -101,31 +100,10 @@ builder.Services.AddScoped<PluginWebhookService>();
 builder.Services.AddScoped<WooStatusReconciliationService>();
 builder.Services.AddScoped<WebhookService>();
 
-builder.Services.Configure<ShiplogicSettings>(builder.Configuration.GetSection(ShiplogicSettings.SectionName));
-
-var shiplogicBaseUrl = builder.Configuration["Shiplogic:ApiBaseUrl"]
-    ?? "https://api.shiplogic.com";
-if (!shiplogicBaseUrl.EndsWith('/')) shiplogicBaseUrl += "/";
-// Where deliveries actually come from now: the Delicate Integration service, which holds
-// the Engine credential and owns the mapping into the Engine's model. Same retry and circuit
-// breaker as the courier call it replaced — it is still a network hop that can have a bad
-// moment, and a booking must not be abandoned because of one.
-builder.Services.AddHttpClient<IDeliveryService, DeliveryService>(client =>
-        DeliveryService.Configure(client, builder.Configuration))
-    .AddPolicyHandler(GetRetryPolicy())
-    .AddPolicyHandler(GetCircuitBreakerPolicy());
-
-builder.Services.AddHttpClient<IShiplogicService, ShiplogicService>(client =>
-{
-    client.BaseAddress = new Uri(shiplogicBaseUrl);
-    // Shipment creation can be slow on Shiplogic's side (their geocoder is
-    // invoked synchronously for addresses without lat/lng), and this timeout
-    // spans the whole Polly retry pipeline. 30s produced spurious
-    // "Request timed out" booking failures — see order WC-49905.
-    client.Timeout = TimeSpan.FromSeconds(100);
-})
-.AddPolicyHandler(GetRetryPolicy())
-.AddPolicyHandler(GetCircuitBreakerPolicy());
+// ShipLogic is gone. Nothing in this process calls a third-party courier: deliveries are
+// booked through the Delicate Integration service, which holds the Engine credential and
+// owns the mapping into the Engine's model. Registered above with the same retry and circuit
+// breaker the courier client had, because it is still a network hop that can have a bad moment.
 
 // ====== GEOCODING ======
 // Shiplogic /v2/rates returns rates:null when its server-side geocoder can't

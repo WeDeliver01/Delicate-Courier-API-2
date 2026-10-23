@@ -1,4 +1,4 @@
-namespace DelicateCouriers.Features.Shiplogic.DTOs;
+namespace DelicateCouriers.ApiService.Features.Delivery.Shapes;
 
 /// <summary>
 /// Raw diagnostic information captured during a Shiplogic call. Only ever
@@ -6,7 +6,7 @@ namespace DelicateCouriers.Features.Shiplogic.DTOs;
 /// X-Debug-Key must match the RATES_DEBUG_SECRET env var). Never returned
 /// to unauthenticated callers without that header.
 /// </summary>
-public class ShiplogicDiagnostics
+public class DeliveryDiagnostics
 {
     public string Endpoint { get; set; } = "";
     public string RequestJson { get; set; } = "";

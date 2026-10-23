@@ -1,8 +1,9 @@
+using DelicateCouriers.ApiService.Features.Delivery;
 using DelicateCouriers.ApiService.Data;
 using DelicateCouriers.ApiService.Infrastructure;
 using DelicateCouriers.ApiService.Infrastructure.Geocoding;
-using DelicateCouriers.Features.Shiplogic;
-using DelicateCouriers.Features.Shiplogic.DTOs;
+using DelicateCouriers.ApiService.Features.Delivery;
+using DelicateCouriers.ApiService.Features.Delivery.Shapes;
 using DelicateCouriers.Features.Shipping.GetRates.DTOs;
 using DelicateCouriers.Features.Shipping.SpecialTrip;
 using Microsoft.AspNetCore.Mvc;
@@ -33,20 +34,20 @@ public class GetRatesController : ControllerBase
         string.IsNullOrWhiteSpace(store.CheckoutRateLabel) ? SpecialTripLabelPrefix : store.CheckoutRateLabel.Trim();
 
     private readonly AppDbContext _context;
-    private readonly IShiplogicService _shiplogicService;
+    private readonly IDeliveryService _delivery;
     private readonly IGeocoder _geocoder;
     private readonly ISpecialTripQuoter _specialTripQuoter;
     private readonly ILogger<GetRatesController> _logger;
 
     public GetRatesController(
         AppDbContext context,
-        IShiplogicService shiplogicService,
+        IDeliveryService delivery,
         IGeocoder geocoder,
         ISpecialTripQuoter specialTripQuoter,
         ILogger<GetRatesController> logger)
     {
         _context = context;
-        _shiplogicService = shiplogicService;
+        _delivery = delivery;
         _geocoder = geocoder;
         _specialTripQuoter = specialTripQuoter;
         _logger = logger;
@@ -70,7 +71,7 @@ public class GetRatesController : ControllerBase
         // troubleshoot directly from a curl without having to grep deployment
         // logs. The secret env var must be non-empty for debug mode to engage
         // — there is no implicit "open" fallback.
-        ShiplogicDiagnostics? capturedDiagnostics = null;
+        DeliveryDiagnostics? capturedDiagnostics = null;
         var debugMode = IsDebugRequest();
 
         try
@@ -90,12 +91,12 @@ public class GetRatesController : ControllerBase
                 });
             }
 
-            // 2. Validate Shiplogic token
-            var bearerToken = store.Tenant?.ShiplogicBearerToken;
+            // 2. Validate the store's Engine account reference
+            var bearerToken = store.EngineAccountRef;
 
             if (string.IsNullOrWhiteSpace(bearerToken))
             {
-                _logger.LogError("Shiplogic bearer token missing for StoreID: {StoreID}", request.StoreId);
+                _logger.LogError("Engine account reference missing for StoreID: {StoreID}", request.StoreId);
                 return StatusCode(500, new GetRatesResponseDto
                 {
                     Success = false,
@@ -209,17 +210,46 @@ public class GetRatesController : ControllerBase
 
             _logger.LogInformation("Mapped parcels: {@Parcels}", parcels);
 
-            // 6. Call Shiplogic
-            var (ratesResponse, diagnostics) = await _shiplogicService.GetRatesWithDiagnosticsAsync(
-                bearerToken,
-                collectionAddress,
-                deliveryAddress,
-                parcels,
-                store.DefaultServiceLevel,  // Pass "STD" from store config
-                cancellationToken);
-            capturedDiagnostics = diagnostics;
+            // 6. Price it through the Engine.
+            //
+            // One service level, the store's own, because that is what the old call passed
+            // and what the plugin filters to. The response is assembled in the same shape
+            // the rest of this method already expects, so switching couriers did not ripple
+            // into the fallback logic, the markup, or the payload the plugin reads.
+            var engineQuote = await _delivery.QuoteAsync(new DeliveryRequest
+            {
+                AccountRef = store.EngineAccountRef,
+                CustomerReference = $"rates-{request.StoreId}",
+                ServiceLevelCode = store.DefaultServiceLevel,
+                Collection = DeliveryRequestFactory.StopFrom(collectionAddress),
+                Delivery = DeliveryRequestFactory.StopFrom(deliveryAddress),
+                Parcels = parcels.Select(p => new DeliveryParcel
+                {
+                    PackageTypeId = store.EnginePackageTypeId,
+                    Quantity = p.ParcelCount <= 0 ? 1 : p.ParcelCount,
+                    WeightKg = p.Weight,
+                    Description = p.Description,
+                }).ToList(),
+            }, cancellationToken);
 
-            _logger.LogInformation("Shiplogic returned {Count} rates: {@Rates}", ratesResponse.Rates.Count, ratesResponse.Rates);
+            var ratesResponse = new RateResponseDto
+            {
+                Rates = new List<ShippingRateDto>
+                {
+                    new()
+                    {
+                        Rate = engineQuote.TotalAmount,
+                        ServiceLevel = new ServiceLevelDto
+                        {
+                            Code = store.DefaultServiceLevel,
+                            Name = store.CheckoutRateLabel ?? "Delicate Courier Delivery",
+                        },
+                    },
+                },
+            };
+
+            _logger.LogInformation("Engine quoted {Amount} for service {Service}",
+                engineQuote.TotalAmount, store.DefaultServiceLevel);
 
             // 7. Return all available rates
             if (!ratesResponse.Rates.Any())
@@ -327,12 +357,16 @@ public class GetRatesController : ControllerBase
                 "RATES_FAIL [{ErrorId}] StoreID={StoreID} ExceptionChain={Detail}",
                 errorId, request.StoreId, detail);
 
-            // If the failure came from inside the Shiplogic call, pull
-            // diagnostics off the typed exception so debug mode can surface
-            // the raw response body that triggered the failure.
-            if (ex is ShiplogicCallException sce)
+            // When the failure came from the delivery call itself, keep what it said. Debug
+            // mode then shows an operator the Engine's own refusal rather than our summary
+            // of it, which is the difference between "rates failed" and "that account is not
+            // granted to this credential".
+            if (ex is DeliveryException de)
             {
-                capturedDiagnostics = sce.Diagnostics;
+                capturedDiagnostics = new DeliveryDiagnostics
+                {
+                    RawResponseBody = $"{(int)de.Status} {de.Code}: {de.Message}",
+                };
             }
 
             return StatusCode(500, new GetRatesResponseDto
@@ -375,7 +409,7 @@ public class GetRatesController : ControllerBase
 
     private const int MaxDebugBodyChars = 8 * 1024;
 
-    private static DebugInfoDto BuildDebugInfo(ShiplogicDiagnostics? d, string? exceptionChain)
+    private static DebugInfoDto BuildDebugInfo(DeliveryDiagnostics? d, string? exceptionChain)
     {
         return new DebugInfoDto
         {

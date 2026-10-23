@@ -4,7 +4,7 @@ using DelicateCouriers.ApiService.Features.Orders;
 using DelicateCouriers.ApiService.Features.WooCommerce;
 using DelicateCouriers.ApiService.Infrastructure.Services;
 using DelicateCouriers.Domain.Entities;
-using DelicateCouriers.Features.Shiplogic;
+using DelicateCouriers.ApiService.Features.Delivery;
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using System.Net;
@@ -217,7 +217,7 @@ public class ShipmentOrchestrationService
         // mapping — otherwise the booking silently defaults to "tomorrow".
         await TryBackfillRequestedDeliveryFromWooAsync(order);
 
-        DelicateCouriers.Features.Shiplogic.DTOs.CreateShipmentRequest shipmentRequest;
+        DelicateCouriers.ApiService.Features.Delivery.Shapes.CreateShipmentRequest shipmentRequest;
         try
         {
             _logger.LogInformation("Mapping Order {OrderId} -> Shiplogic request (StoreID={StoreId}).", orderId, order.StoreID);

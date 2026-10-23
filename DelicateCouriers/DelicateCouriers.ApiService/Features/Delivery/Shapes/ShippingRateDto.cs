@@ -1,6 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace DelicateCouriers.Features.Shiplogic.DTOs;
+namespace DelicateCouriers.ApiService.Features.Delivery.Shapes;
 
 public class ShippingRateDto
 {

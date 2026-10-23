@@ -2,7 +2,7 @@
 using DelicateCouriers.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
-namespace DelicateCouriers.Features.Shiplogic;
+namespace DelicateCouriers.ApiService.Features.Delivery;
 
 /// <summary>
 /// Service for managing shipment label PDFs.

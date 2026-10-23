@@ -1,6 +1,7 @@
+using DelicateCouriers.ApiService.Features.Delivery;
 ﻿using DelicateCouriers.ApiService.Data;
 using DelicateCouriers.ApiService.Features.WooCommerce;
-using DelicateCouriers.Features.Shiplogic;
+using DelicateCouriers.ApiService.Features.Delivery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -16,7 +17,7 @@ public class ShipmentsController : ControllerBase
     private readonly LabelService _labelService;
     private readonly ILogger<ShipmentsController> _logger;
     private readonly ShipmentService _shipmentService;
-    private readonly IShiplogicService _shiplogicService;
+    private readonly IDeliveryService _delivery;
     private readonly IWooCommerceService _wooCommerceService;
     private readonly AppDbContext _context;
 
@@ -25,7 +26,7 @@ public class ShipmentsController : ControllerBase
         LabelService labelService,
         ILogger<ShipmentsController> logger,
         ShipmentService shipmentService,
-        IShiplogicService shiplogicService,
+        IDeliveryService delivery,
         IWooCommerceService wooCommerceService,
         AppDbContext context)
     {
@@ -33,7 +34,7 @@ public class ShipmentsController : ControllerBase
         _labelService = labelService;
         _logger = logger;
         _shipmentService = shipmentService;
-        _shiplogicService = shiplogicService;
+        _delivery = delivery;
         _wooCommerceService = wooCommerceService;
         _context = context;
     }
@@ -331,24 +332,30 @@ public class ShipmentsController : ControllerBase
             return BadRequest(new { message = "Shipment has no consignment id yet" });
         }
 
-        var bearerToken = shipment.Order?.Store?.Tenant?.ShiplogicBearerToken;
-        if (string.IsNullOrEmpty(bearerToken))
+        // No per-tenant courier token any more. The account the Engine books against is the
+        // store's own reference, and the credential that reaches the Engine is held by one
+        // service rather than copied onto every tenant row.
+        var accountRef = shipment.Order?.Store?.EngineAccountRef;
+        if (string.IsNullOrWhiteSpace(accountRef))
         {
-            return BadRequest(new { message = "Tenant Shiplogic bearer token not configured" });
+            return BadRequest(new { message = "Store has no Engine account reference configured" });
         }
 
         try
         {
-            var tracking = await _shiplogicService.GetTrackingUpdatesAsync(
-                bearerToken,
-                new List<string> { shipment.ConsignmentID });
+            var booking = await _delivery.GetAsync(accountRef, shipment.ConsignmentID);
+            if (booking is null)
+            {
+                return NotFound(new { message = "No booking found for that consignment" });
+            }
 
-            return Ok(tracking);
+            return Ok(booking);
         }
-        catch (Exception ex)
+        catch (DeliveryException ex)
         {
             _logger.LogError(ex, "Error fetching tracking for ShipmentID: {ShipmentId}", shipmentId);
-            return StatusCode(502, new { message = "Failed to fetch tracking from Shiplogic" });
+            // A bad moment and a refusal are different things, and only one is worth retrying.
+            return StatusCode(ex.IsTransient ? 502 : 400, new { message = ex.Message, code = ex.Code });
         }
     }
 

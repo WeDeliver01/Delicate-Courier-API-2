@@ -1,6 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace DelicateCouriers.Features.Shiplogic.DTOs;
+namespace DelicateCouriers.ApiService.Features.Delivery.Shapes;
 
 /// <summary>
 /// Response from getting rates
