@@ -26,16 +26,20 @@ public class LabelService
     /// </summary>
     /// <param name="shipmentId">Shipment ID from our database</param>
     /// <param name="pdfBytes">The PDF file as byte array</param>
-    /// <param name="shiplogicShipmentId">Shiplogic's shipment ID</param>
+    /// <param name="carrierShipmentId">
+    /// The carrier's own id for the shipment, used to name the file. A string since the
+    /// Engine took over: ShipLogic numbered its shipments, the Engine uses uuids, and the
+    /// only thing this does with the value is put it in a filename.
+    /// </param>
     /// <returns>The saved Label entity</returns>
-    public async Task<Label> SaveLabelAsync(int shipmentId, byte[] pdfBytes, int shiplogicShipmentId)
+    public async Task<Label> SaveLabelAsync(int shipmentId, byte[] pdfBytes, string carrierShipmentId)
     {
         _logger.LogInformation("Saving label for ShipmentID: {ShipmentId}, Size: {Size} bytes", shipmentId, pdfBytes.Length);
 
         // Check if label already exists
         var existingLabel = await _context.Labels.FirstOrDefaultAsync(l => l.ShipmentID == shipmentId);
 
-        var fileName = $"label_{shiplogicShipmentId}.pdf";
+        var fileName = $"label_{carrierShipmentId}.pdf";
         var base64Data = Convert.ToBase64String(pdfBytes);
 
         if (existingLabel != null)

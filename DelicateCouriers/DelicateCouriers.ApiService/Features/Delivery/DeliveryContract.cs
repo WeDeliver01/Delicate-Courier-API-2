@@ -83,6 +83,15 @@ public sealed record DeliveryBooking
     [JsonPropertyName("status")] public string Status { get; init; } = string.Empty;
     [JsonPropertyName("totalCents")] public long TotalCents { get; init; }
 
+    /// <summary>
+    /// Who is carrying it. Always us now: there is no third party to name since the
+    /// decoupling, and the column used to hold the reseller's collecting branch.
+    /// </summary>
+    [JsonPropertyName("courierName")] public string CourierName { get; init; } = "Delicate Courier";
+
+    /// <summary>The service actually booked. Stored as CourierService.</summary>
+    [JsonPropertyName("serviceLevelCode")] public string ServiceLevelCode { get; init; } = string.Empty;
+
     /// <summary>True when this was already booked and the Engine returned what it had.</summary>
     [JsonPropertyName("replayed")] public bool Replayed { get; init; }
 

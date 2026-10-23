@@ -109,6 +109,8 @@ public class AppDbContext : DbContext, IDataProtectionKeyContext
             entity.Property(e => e.SpecialTripCostPerKm).HasPrecision(10, 2);
             entity.Property(e => e.SpecialTripMinFee).HasPrecision(18, 2);
             entity.Property(e => e.SpecialTripMaxKm).HasPrecision(10, 1);
+            entity.Property(e => e.EngineAccountRef).HasMaxLength(120);
+            entity.Property(e => e.EnginePackageTypeId).HasMaxLength(64);
             entity.Property(e => e.WooCommerceURL).HasMaxLength(500);
             entity.Property(e => e.WooConsumerKey).HasMaxLength(200);
             entity.Property(e => e.WooConsumerSecret).HasMaxLength(200);

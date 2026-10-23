@@ -273,10 +273,14 @@ namespace DelicateCouriers.ApiService.Features.WooCommerce
                         {
                             pdfBytes = await shiplogicService.GetLabelAsync(
                                 tenant.ShiplogicBearerToken, shipment.ConsignmentID);
-                            if (pdfBytes is { Length: > 0 }
-                                && int.TryParse(shipment.ConsignmentID, out var shiplogicId))
+                            // The parse to int was there because ShipLogic numbered its
+                            // shipments. The Engine uses uuids, and the id is only ever a
+                            // filename here, so it travels as text and no longer silently
+                            // skips saving a label whose id is not a number.
+                            if (pdfBytes is { Length: > 0 })
                             {
-                                await labelService.SaveLabelAsync(shipment.ShipmentID, pdfBytes, shiplogicId);
+                                await labelService.SaveLabelAsync(
+                                    shipment.ShipmentID, pdfBytes, shipment.ConsignmentID);
                             }
                         }
                         catch (Exception fetchEx)

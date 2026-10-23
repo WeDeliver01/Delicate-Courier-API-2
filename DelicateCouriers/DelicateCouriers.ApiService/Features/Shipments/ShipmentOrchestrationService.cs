@@ -1,3 +1,4 @@
+using DelicateCouriers.ApiService.Features.Delivery;
 using DelicateCouriers.ApiService.Data;
 using DelicateCouriers.ApiService.Features.Orders;
 using DelicateCouriers.ApiService.Features.WooCommerce;
@@ -17,7 +18,7 @@ namespace DelicateCouriers.ApiService.Features.Shipments;
 public class ShipmentOrchestrationService
 {
     private readonly AppDbContext _context;
-    private readonly IShiplogicService _shiplogicService;
+    private readonly IDeliveryService _delivery;
     private readonly ILogger<ShipmentOrchestrationService> _logger;
     private readonly LabelService _labelService;
     private readonly OrderToShipmentMapper _orderToShipmentMapper;
@@ -27,11 +28,11 @@ public class ShipmentOrchestrationService
     private readonly IWooFulfillmentVerifier _fulfillmentVerifier;
     private readonly DelicateCouriers.ApiService.Features.Notifications.IAdminEmailSender _adminEmailSender;
 
-    public ShipmentOrchestrationService(AppDbContext context, IShiplogicService shiplogicService, ILogger<ShipmentOrchestrationService> logger, LabelService labelService, OrderToShipmentMapper orderToShipmentMapper, ISystemEventLogger systemEvents, IWooCommerceService wooCommerceService, IBackgroundJobClient backgroundJobClient, IWooFulfillmentVerifier fulfillmentVerifier, DelicateCouriers.ApiService.Features.Notifications.IAdminEmailSender adminEmailSender)
+    public ShipmentOrchestrationService(AppDbContext context, IDeliveryService delivery, ILogger<ShipmentOrchestrationService> logger, LabelService labelService, OrderToShipmentMapper orderToShipmentMapper, ISystemEventLogger systemEvents, IWooCommerceService wooCommerceService, IBackgroundJobClient backgroundJobClient, IWooFulfillmentVerifier fulfillmentVerifier, DelicateCouriers.ApiService.Features.Notifications.IAdminEmailSender adminEmailSender)
     {
         _adminEmailSender = adminEmailSender;
         _context = context;
-        _shiplogicService = shiplogicService;
+        _delivery = delivery;
         _logger = logger;
         _labelService = labelService;
         _orderToShipmentMapper = orderToShipmentMapper;
@@ -270,7 +271,7 @@ public class ShipmentOrchestrationService
         // may re-invoke the delegate on a transient DB failure, and stale state
         // from a failed previous attempt would corrupt the sibling-skip decision.
         Shipment? createdShipment = null;
-        DelicateCouriers.Features.Shiplogic.DTOs.CreateShipmentResponse? shiplogicResponse = null;
+        DeliveryBooking? booking = null;
         bool siblingWon = false;
         try
         {
@@ -279,7 +280,7 @@ public class ShipmentOrchestrationService
             {
                 // Reset per-attempt state — see comment above.
                 createdShipment = null;
-                shiplogicResponse = null;
+                booking = null;
                 siblingWon = false;
 
                 // PER-ORDER SERIALIZATION (concurrent-job race guard)
@@ -330,44 +331,52 @@ public class ShipmentOrchestrationService
             // case is exactly the pre-guard behaviour).
                 if (!string.IsNullOrWhiteSpace(shipmentRequest.CustomerReference))
                 {
-                    shiplogicResponse = await _shiplogicService.FindShipmentByCustomerReferenceAsync(
-                        tenant.ShiplogicBearerToken,
+                    booking = await _delivery.FindByReferenceAsync(
+                        order.Store.EngineAccountRef,
                         shipmentRequest.CustomerReference);
 
-                    if (shiplogicResponse != null)
+                    if (booking != null)
                     {
                         _logger.LogWarning(
-                            "Shiplogic already has a shipment for Order {OrderId} (Reference {Reference}, ShipmentId {ShipmentId}). " +
+                            "A booking already exists for Order {OrderId} (Reference {Reference}, Consignment {ConsignmentId}). " +
                             "Reusing instead of creating a duplicate — this is the crash-window idempotency guard.",
-                            orderId, shipmentRequest.CustomerReference, shiplogicResponse.ShipmentId);
+                            orderId, shipmentRequest.CustomerReference, booking.ConsignmentId);
                     }
                 }
 
-                if (shiplogicResponse == null)
+                if (booking == null)
                 {
-                    _logger.LogInformation("Creating shipment in Shiplogic for Order {OrderId}. Weight: {Weight}kg, Service: {Service}",
+                    _logger.LogInformation("Booking delivery for Order {OrderId}. Weight: {Weight}kg, Service: {Service}",
                                             orderId,
                                             shipmentRequest.Parcels.Sum(p => p.Weight),
                                             shipmentRequest.ServiceLevelCode
                     );
 
-                    shiplogicResponse = await _shiplogicService.CreateShipmentAsync(tenant.ShiplogicBearerToken, shipmentRequest);
+                    booking = await _delivery.BookAsync(DeliveryRequestFactory.From(
+                        shipmentRequest,
+                        order.Store.EngineAccountRef,
+                        order.Store.EnginePackageTypeId));
 
-                    _logger.LogInformation("Shipment created in Shiplogic. ConsignmentId: {ConsignmentId}, Tracking: {TrackingNumber}",
-                        shiplogicResponse.ConsignmentId, shiplogicResponse.TrackingNumber);
+                    _logger.LogInformation("Delivery booked. ConsignmentId: {ConsignmentId}, Tracking: {TrackingNumber}, Replayed: {Replayed}",
+                        booking.ConsignmentId, booking.TrackingNumber, booking.Replayed);
                 }
 
                 // Step 7: Save shipment to database
                 var shipment = new Shipment
                 {
                     OrderID = order.OrderID,
-                    ConsignmentID = shiplogicResponse.ConsignmentId,
-                    TrackingNumber = shiplogicResponse.TrackingNumber,
-                    CourierName = shiplogicResponse.CollectionBranchName ?? "Unknown",
-                    CourierService = shiplogicResponse.ServiceLevelCode ?? order.Store.DefaultServiceLevel,
-                    ShipmentStatus = shiplogicResponse.Status ?? "Created",
-                    ShippingCost = shiplogicResponse.Rate ?? 0m,
-                    EstimatedDeliveryDate = shiplogicResponse.EstimatedDeliveryDate,
+                    ConsignmentID = booking.ConsignmentId,
+                    TrackingNumber = booking.TrackingNumber,
+                    // We are the courier now, so there is no collecting branch to name.
+                    CourierName = booking.CourierName,
+                    CourierService = string.IsNullOrWhiteSpace(booking.ServiceLevelCode)
+                        ? order.Store.DefaultServiceLevel
+                        : booking.ServiceLevelCode,
+                    ShipmentStatus = string.IsNullOrWhiteSpace(booking.Status) ? "Created" : booking.Status,
+                    ShippingCost = booking.TotalAmount,
+                    // The Engine does not promise a date at booking; it is derived from the
+                    // service level downstream rather than invented here.
+                    EstimatedDeliveryDate = null,
                     CreatedOn = DateTime.UtcNow,
                     CreatedBy = "ShipmentOrchestration"
                 };
@@ -391,8 +400,8 @@ public class ShipmentOrchestrationService
             // If a sibling job had already created the shipment, short-circuit
             // — no Shiplogic create happened on this attempt, so there's nothing
             // to label. Use the explicit flag rather than inferring from
-            // (shiplogicResponse == null) — a previous failed retry attempt
-            // could have populated shiplogicResponse before throwing, and the
+            // (booking == null) — a previous failed retry attempt
+            // could have populated booking before throwing, and the
             // reset at the top of the delegate only nulls it on the NEXT
             // successful entry, not on a path that exits via sibling-won.
             if (siblingWon)
@@ -405,19 +414,19 @@ public class ShipmentOrchestrationService
             // transient label-fetch failure doesn't replay the shipment create.
             try
             {
-                _logger.LogInformation("Fetching label for Shiplogic shipment ID: {ShiplogicShipmentId}",
-                    shiplogicResponse!.ShipmentId);
+                _logger.LogInformation("Fetching waybill for consignment {ConsignmentId}",
+                    booking!.ConsignmentId);
 
-                var labelBytes = await _shiplogicService.GetShipmentLabelAsync(
-                    tenant.ShiplogicBearerToken,
-                    shiplogicResponse.ShipmentId);
+                var labelBytes = await _delivery.GetLabelAsync(
+                    order.Store.EngineAccountRef,
+                    booking.ConsignmentId);
 
                 if (labelBytes != null && labelBytes.Length > 0)
                 {
                     await _labelService.SaveLabelAsync(
                         createdShipment!.ShipmentID,
                         labelBytes,
-                        shiplogicResponse.ShipmentId);
+                        booking.ConsignmentId);
 
                     _logger.LogInformation("Label fetched and saved for ShipmentID: {ShipmentId}. Size: {Size} bytes",
                         createdShipment.ShipmentID, labelBytes.Length);
@@ -425,7 +434,7 @@ public class ShipmentOrchestrationService
                 else
                 {
                     _logger.LogWarning("Label not available yet for Shiplogic shipment ID: {ShiplogicShipmentId}. " +
-                        "Label can be fetched manually later.", shiplogicResponse.ShipmentId);
+                        "Label can be fetched manually later.", booking.ConsignmentId);
                 }
             }
             catch (Exception labelEx)
@@ -469,7 +478,7 @@ public class ShipmentOrchestrationService
             await TryPushTrackingToStorefrontAsync(order, createdShipment!);
             // ==================== END PUSH TRACKING ====================
 
-            return ShipmentCreationResult.Success(createdShipment!.ShipmentID, shiplogicResponse!.TrackingNumber);
+            return ShipmentCreationResult.Success(createdShipment!.ShipmentID, booking!.TrackingNumber);
         }
         catch (Exception ex)
         {

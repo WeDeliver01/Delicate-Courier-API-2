@@ -196,6 +196,25 @@ public class Store
     //Service level - Required field for Shiplogic shipment creation
     public string DefaultServiceLevel { get; set; } = "STD";
 
+    /// <summary>
+    /// This store's own identifier, which the Engine resolves to an account.
+    ///
+    /// Replaces the pair above. ShiplogicAccountId and ShiplogicProviderId named a reseller's
+    /// account and the carrier within it; the Engine needs neither, because the account is
+    /// ours and there is no carrier to choose. Kept as the store's own reference rather than
+    /// an Engine uuid, so this portal never has to store the Engine's ids.
+    /// </summary>
+    public string EngineAccountRef { get; set; } = string.Empty;
+
+    /// <summary>
+    /// What this store's parcels are priced as in the Engine's catalogue.
+    ///
+    /// Not derivable from dimensions: the Engine prices by catalogued type, and nothing in a
+    /// length and a weight says whether a box of cupcakes is handled like a box of books. A
+    /// store that sells one kind of thing says so once, here.
+    /// </summary>
+    public string EnginePackageTypeId { get; set; } = string.Empty;
+
     // Collection address suburb (local_area for Shiplogic)
     public string? CollectionSuburb { get; set; }
 

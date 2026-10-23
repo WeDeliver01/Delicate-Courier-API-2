@@ -112,7 +112,7 @@ public class PortalController : ControllerBase
                 },
                 cancellationToken);
 
-            return Ok(ToResult(result));
+            return Ok(ToResult(result, request.ServiceLevelCode));
         }
         catch (AddressUnresolvedException ex)
         {
@@ -312,10 +312,11 @@ public class PortalController : ControllerBase
         Email = stop.ContactEmail,
     };
 
-    private static PortalDeliveryResult ToResult(EngineBookingResponse response) =>
-        ToResult(response.Booking, response.Replayed);
+    private static PortalDeliveryResult ToResult(EngineBookingResponse response, string serviceLevelCode) =>
+        ToResult(response.Booking, response.Replayed, serviceLevelCode);
 
-    private static PortalDeliveryResult ToResult(EngineBooking booking, bool replayed)
+    private static PortalDeliveryResult ToResult(
+        EngineBooking booking, bool replayed, string serviceLevelCode = "")
     {
         var shipment = booking.Shipments.FirstOrDefault();
         return new PortalDeliveryResult
@@ -327,6 +328,7 @@ public class PortalController : ControllerBase
             Reference = booking.Reference,
             Status = shipment?.Status ?? booking.Status,
             TotalCents = booking.TotalCents,
+            ServiceLevelCode = serviceLevelCode,
             Replayed = replayed,
         };
     }

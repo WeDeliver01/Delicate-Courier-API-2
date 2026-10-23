@@ -109,6 +109,19 @@ public sealed record PortalDeliveryResult
     [JsonPropertyName("totalCents")] public long TotalCents { get; init; }
 
     /// <summary>
+    /// Who is carrying it.
+    ///
+    /// Always us now. The portal's CourierName column exists because shipments used to be
+    /// resold through a third party whose branch did the collecting. After the decoupling
+    /// there is no third party, and saying so plainly beats leaving a column that quietly
+    /// means something it no longer means.
+    /// </summary>
+    [JsonPropertyName("courierName")] public string CourierName { get; init; } = "Delicate Courier";
+
+    /// <summary>The service actually booked. The portal stores it as CourierService.</summary>
+    [JsonPropertyName("serviceLevelCode")] public string ServiceLevelCode { get; init; } = string.Empty;
+
+    /// <summary>
     /// True when the Engine recognised this as something it had already booked.
     ///
     /// Worth surfacing rather than hiding: a caller that retried after a timeout wants to know

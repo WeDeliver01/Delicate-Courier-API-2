@@ -1,3 +1,4 @@
+using DelicateCouriers.ApiService.Features.Delivery;
 using DelicateCouriers.ApiService.Data;
 using DelicateCouriers.ApiService.Features.Orders;
 using DelicateCouriers.ApiService.Features.Packaging;
@@ -105,6 +106,15 @@ builder.Services.Configure<ShiplogicSettings>(builder.Configuration.GetSection(S
 var shiplogicBaseUrl = builder.Configuration["Shiplogic:ApiBaseUrl"]
     ?? "https://api.shiplogic.com";
 if (!shiplogicBaseUrl.EndsWith('/')) shiplogicBaseUrl += "/";
+// Where deliveries actually come from now: the Delicate Integration service, which holds
+// the Engine credential and owns the mapping into the Engine's model. Same retry and circuit
+// breaker as the courier call it replaced — it is still a network hop that can have a bad
+// moment, and a booking must not be abandoned because of one.
+builder.Services.AddHttpClient<IDeliveryService, DeliveryService>(client =>
+        DeliveryService.Configure(client, builder.Configuration))
+    .AddPolicyHandler(GetRetryPolicy())
+    .AddPolicyHandler(GetCircuitBreakerPolicy());
+
 builder.Services.AddHttpClient<IShiplogicService, ShiplogicService>(client =>
 {
     client.BaseAddress = new Uri(shiplogicBaseUrl);
