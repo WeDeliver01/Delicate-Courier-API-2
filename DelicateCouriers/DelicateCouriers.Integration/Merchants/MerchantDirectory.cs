@@ -11,6 +11,34 @@ namespace DelicateCouriers.Integration.Merchants;
 /// that is settled it is configuration, which keeps the decision visible instead of quietly
 /// baking in whichever database happened to be nearest.
 /// </summary>
+/// <summary>
+/// One delivery option a merchant offers at checkout.
+///
+/// Three identifiers, not one, because three systems name the same thing differently and
+/// conflating them is how a shopper ends up buying Express and the courier being told
+/// Standard. <see cref="CheckoutCode"/> is what WooCommerce shows and hands back on the
+/// order; <see cref="EngineCode"/> is what the Engine prices and books; the label is the
+/// merchant's own words for it.
+/// </summary>
+public sealed class MerchantServiceLevel
+{
+    /// <summary>
+    /// The code the plugin builds its Woo method id from, e.g. "STD" becomes
+    /// delicate_courier_platform_std. This is what comes back on the order, so it is how a
+    /// shopper's choice is recognised.
+    /// </summary>
+    public string CheckoutCode { get; set; } = string.Empty;
+
+    /// <summary>What the customer reads at checkout. The merchant's words, not ours.</summary>
+    public string CheckoutLabel { get; set; } = string.Empty;
+
+    /// <summary>The Engine service level to price and book against, e.g. "standard".</summary>
+    public string EngineCode { get; set; } = string.Empty;
+
+    /// <summary>Shown at checkout as the delivery estimate.</summary>
+    public int EstimatedDeliveryDays { get; set; } = 1;
+}
+
 public sealed class Merchant
 {
     public int StoreId { get; set; }
@@ -36,16 +64,14 @@ public sealed class Merchant
     public MerchantAddress Collection { get; set; } = new();
 
     /// <summary>
-    /// The service-level code the plugin is configured to accept, almost always "STD". The
-    /// plugin filters rates by this; get it wrong and the customer sees no delivery option.
+    /// What this merchant offers at checkout, in the order the shopper sees it.
+    ///
+    /// A list rather than one level, because a merchant who sells next-day and same-day has
+    /// two prices to show and the shopper picks. Empty means this merchant offers nothing and
+    /// their checkout will show no delivery option, which is why it is validated on save
+    /// rather than discovered by a customer.
     /// </summary>
-    public string CheckoutServiceLevelCode { get; set; } = "STD";
-
-    /// <summary>What the customer reads at checkout. The merchant's words, not ours.</summary>
-    public string CheckoutRateLabel { get; set; } = "Delicate Courier Delivery";
-
-    /// <summary>The Engine service level to price against, e.g. "standard".</summary>
-    public string EngineServiceLevelCode { get; set; } = "standard";
+    public List<MerchantServiceLevel> ServiceLevels { get; set; } = new();
 
     /// <summary>
     /// Engine package type to quote each parcel as. The plugin sends dimensions and weight,
@@ -53,8 +79,6 @@ public sealed class Merchant
     /// — so a merchant who sells cakes says so once, here.
     /// </summary>
     public string DefaultPackageTypeId { get; set; } = string.Empty;
-
-    public int EstimatedDeliveryDays { get; set; } = 1;
 
     /// <summary>
     /// Shared secret the plugin signs its webhooks with (HMAC-SHA256 over the raw body).

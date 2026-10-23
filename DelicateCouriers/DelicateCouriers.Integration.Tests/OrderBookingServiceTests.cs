@@ -32,7 +32,16 @@ public class OrderBookingServiceTests
         StoreId = 1,
         Name = "Honey Bee Baker",
         EngineAccountRef = "store-1",
-        EngineServiceLevelCode = "standard",
+        ServiceLevels = new List<MerchantServiceLevel>
+        {
+            new()
+            {
+                CheckoutCode = "STD",
+                CheckoutLabel = "Delicate Courier Delivery",
+                EngineCode = "standard",
+                EstimatedDeliveryDays = 1,
+            },
+        },
         DefaultPackageTypeId = Guid.Empty.ToString(),
         Collection = new MerchantAddress
         {

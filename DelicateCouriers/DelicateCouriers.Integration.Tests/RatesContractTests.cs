@@ -34,6 +34,87 @@ public class RatesContractTests : IClassFixture<RatesContractTests.Host>
         _host.Engine.Quote = _ => throw new InvalidOperationException("no stub configured");
     }
 
+    [Fact]
+    public async Task A_merchant_offering_two_levels_gets_two_rates_at_checkout()
+    {
+        // Priced per level, so each carries its own code, label and price. The shopper is
+        // choosing between them, which is the whole point.
+        _host.Engine.Quote = call => StubQuote(
+            totalCents: call.Body.ServiceLevelCode == "express" ? 24_000 : 17_250);
+
+        var response = await _host.CreateClient()
+            .PostAsJsonAsync("/api/public/shipping/rates", PluginPayload(storeId: 2));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        var rates = body.RootElement.GetProperty("rates").EnumerateArray().ToList();
+        Assert.Equal(2, rates.Count);
+
+        Assert.Equal("STD", rates[0].GetProperty("serviceLevelCode").GetString());
+        Assert.Equal(172.50m, rates[0].GetProperty("cost").GetDecimal());
+        Assert.Equal("EXP", rates[1].GetProperty("serviceLevelCode").GetString());
+        Assert.Equal(240.00m, rates[1].GetProperty("cost").GetDecimal());
+    }
+
+    [Fact]
+    public async Task One_level_failing_still_offers_the_other()
+    {
+        // A shopper shown Standard when Express could not be priced is better served than one
+        // shown nothing, and the merchant keeps the sale either way.
+        _host.Engine.Quote = call => call.Body.ServiceLevelCode == "express"
+            ? throw new EngineCallException(
+                HttpStatusCode.InternalServerError, "engine_error", "express is unavailable", "req-1")
+            : StubQuote(totalCents: 17_250);
+
+        var response = await _host.CreateClient()
+            .PostAsJsonAsync("/api/public/shipping/rates", PluginPayload(storeId: 2));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        Assert.True(body.RootElement.GetProperty("success").GetBoolean());
+        var rate = Assert.Single(body.RootElement.GetProperty("rates").EnumerateArray().ToList());
+        Assert.Equal("STD", rate.GetProperty("serviceLevelCode").GetString());
+    }
+
+    [Fact]
+    public async Task Every_level_failing_is_reported_as_a_failure_not_an_empty_shelf()
+    {
+        // All of them down is the Engine being unavailable, which the merchant needs to hear
+        // about. "No rates available" would read as a working checkout that sells nothing.
+        _host.Engine.Quote = _ => throw new EngineCallException(
+            HttpStatusCode.InternalServerError, "engine_error", "everything is down", "req-2");
+
+        var response = await _host.CreateClient()
+            .PostAsJsonAsync("/api/public/shipping/rates", PluginPayload(storeId: 2));
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+    }
+
+    private static Merchant TwoLevelStore() => new()
+    {
+        StoreId = 2,
+        Name = "Two Level Bakery",
+        EngineAccountRef = "store-2",
+        ServiceLevels = new List<MerchantServiceLevel>
+        {
+            new() { CheckoutCode = "STD", CheckoutLabel = "Standard", EngineCode = "standard", EstimatedDeliveryDays = 2 },
+            new() { CheckoutCode = "EXP", CheckoutLabel = "Express", EngineCode = "express", EstimatedDeliveryDays = 1 },
+        },
+        DefaultPackageTypeId = Guid.Empty.ToString(),
+        Collection = new MerchantAddress
+        {
+            Formatted = "Two Level Bakery, Menlyn",
+            City = "Pretoria",
+            Country = "ZA",
+            Latitude = -25.7826,
+            Longitude = 28.2755,
+            ContactName = "Bakery",
+            ContactPhone = "0821111111",
+        },
+    };
+
     private static object PluginPayload(int storeId = 1) => new
     {
         storeId,
@@ -238,16 +319,25 @@ public class RatesContractTests : IClassFixture<RatesContractTests.Host>
                     {
                         Stores = new List<Merchant>
                         {
+                            // Offers two levels, so the multi-rate behaviour has something
+                            // real to assert against rather than a single-item list.
+                            TwoLevelStore(),
                             new()
                             {
                                 StoreId = 1,
                                 Name = "Honey Bee Baker",
                                 EngineAccountRef = "store-1",
-                                CheckoutServiceLevelCode = "STD",
-                                CheckoutRateLabel = "Delicate Courier Delivery",
-                                EngineServiceLevelCode = "standard",
+                                ServiceLevels = new List<MerchantServiceLevel>
+                                {
+                                    new()
+                                    {
+                                        CheckoutCode = "STD",
+                                        CheckoutLabel = "Delicate Courier Delivery",
+                                        EngineCode = "standard",
+                                        EstimatedDeliveryDays = 1,
+                                    },
+                                },
                                 DefaultPackageTypeId = Guid.Empty.ToString(),
-                                EstimatedDeliveryDays = 1,
                                 Collection = new MerchantAddress
                                 {
                                     Formatted = "Honey Bee Baker, Menlyn",

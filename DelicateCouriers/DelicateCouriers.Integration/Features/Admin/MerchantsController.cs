@@ -82,6 +82,42 @@ public class MerchantsController : ControllerBase
     }
 
     /// <summary>
+    /// Refuses a merchant who would be saved looking fine and sell nothing.
+    ///
+    /// A merchant with no service levels has no delivery option at checkout, and a duplicate
+    /// code means two rates share one Woo method id, so the shopper's choice cannot be read
+    /// back and the booking would be a guess. Both are cheap to catch here and expensive to
+    /// find at a customer's checkout.
+    /// </summary>
+    private static string? Invalid(MerchantUpsert body)
+    {
+        if (body.ServiceLevels.Count == 0)
+        {
+            return "At least one service level is required, or this merchant has no delivery "
+                   + "option to offer at checkout.";
+        }
+
+        foreach (var level in body.ServiceLevels)
+        {
+            if (string.IsNullOrWhiteSpace(level.CheckoutCode)
+                || string.IsNullOrWhiteSpace(level.EngineCode)
+                || string.IsNullOrWhiteSpace(level.CheckoutLabel))
+            {
+                return "Every service level needs a checkout code, a label and an Engine code.";
+            }
+        }
+
+        var duplicate = body.ServiceLevels
+            .GroupBy(l => l.CheckoutCode.Trim(), StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(g => g.Count() > 1);
+
+        return duplicate is null
+            ? null
+            : $"Service level code \"{duplicate.Key}\" is used twice. Codes become the "
+              + "WooCommerce method id, so they have to be distinct.";
+    }
+
+    /// <summary>
     /// What an operator should actually do about it.
     ///
     /// The fix is two calls against the Engine's admin API by someone holding super_admin, so
@@ -117,6 +153,8 @@ public class MerchantsController : ControllerBase
     public async Task<ActionResult<MerchantCreated>> Create(
         [FromBody] MerchantUpsert body, CancellationToken cancellationToken)
     {
+        if (Invalid(body) is { } problem) return BadRequest(new { error = problem });
+
         if (await _db.Merchants.AnyAsync(m => m.StoreId == body.StoreId, cancellationToken))
         {
             return Conflict(new { error = $"Store {body.StoreId} already exists" });
@@ -143,6 +181,8 @@ public class MerchantsController : ControllerBase
     public async Task<ActionResult<MerchantView>> Update(
         int storeId, [FromBody] MerchantUpsert body, CancellationToken cancellationToken)
     {
+        if (Invalid(body) is { } problem) return BadRequest(new { error = problem });
+
         var record = await _db.Merchants.FirstOrDefaultAsync(m => m.StoreId == storeId, cancellationToken);
         if (record is null) return NotFound(new { error = "Merchant not found" });
 
@@ -261,11 +301,8 @@ public sealed record MerchantView(
     string EngineAccountRef,
     string? EngineAccountId,
     MerchantAddress Collection,
-    string CheckoutServiceLevelCode,
-    string CheckoutRateLabel,
-    string EngineServiceLevelCode,
+    List<MerchantServiceLevel> ServiceLevels,
     string DefaultPackageTypeId,
-    int EstimatedDeliveryDays,
     List<string> BookingTriggerStatuses,
     string? WooCommerceUrl,
     bool HasWooCredentials,
@@ -274,8 +311,7 @@ public sealed record MerchantView(
 {
     public static MerchantView Of(MerchantRecord r) => new(
         r.StoreId, r.Name, r.EngineAccountRef, r.EngineAccountId, r.Collection,
-        r.CheckoutServiceLevelCode, r.CheckoutRateLabel, r.EngineServiceLevelCode,
-        r.DefaultPackageTypeId, r.EstimatedDeliveryDays, r.BookingTriggerStatuses,
+        r.ServiceLevels, r.DefaultPackageTypeId, r.BookingTriggerStatuses,
         r.WooCommerceUrl,
         !string.IsNullOrWhiteSpace(r.WooConsumerKey) && !string.IsNullOrWhiteSpace(r.WooConsumerSecret),
         r.IsActive, r.UpdatedAt);
@@ -290,11 +326,11 @@ public sealed class MerchantUpsert
     public string EngineAccountRef { get; set; } = string.Empty;
     public string? EngineAccountId { get; set; }
     public MerchantAddress Collection { get; set; } = new();
-    public string CheckoutServiceLevelCode { get; set; } = "STD";
-    public string CheckoutRateLabel { get; set; } = "Delicate Courier Delivery";
-    public string EngineServiceLevelCode { get; set; } = "standard";
+    /// <summary>
+    /// What this merchant offers at checkout. At least one, or they have no delivery to sell.
+    /// </summary>
+    public List<MerchantServiceLevel> ServiceLevels { get; set; } = new();
     public string DefaultPackageTypeId { get; set; } = string.Empty;
-    public int EstimatedDeliveryDays { get; set; } = 1;
     public List<string> BookingTriggerStatuses { get; set; } = new();
     public string? WooCommerceUrl { get; set; }
 
@@ -310,11 +346,8 @@ public sealed class MerchantUpsert
         record.EngineAccountRef = EngineAccountRef;
         record.EngineAccountId = EngineAccountId;
         record.Collection = Collection;
-        record.CheckoutServiceLevelCode = CheckoutServiceLevelCode;
-        record.CheckoutRateLabel = CheckoutRateLabel;
-        record.EngineServiceLevelCode = EngineServiceLevelCode;
+        record.ServiceLevels = ServiceLevels;
         record.DefaultPackageTypeId = DefaultPackageTypeId;
-        record.EstimatedDeliveryDays = EstimatedDeliveryDays;
         record.BookingTriggerStatuses = BookingTriggerStatuses;
         record.WooCommerceUrl = WooCommerceUrl;
         record.IsActive = IsActive;

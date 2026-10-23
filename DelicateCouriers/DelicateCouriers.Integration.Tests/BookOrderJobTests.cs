@@ -41,6 +41,16 @@ public class BookOrderJobTests
         StoreId = storeId,
         Name = "Honey Bee Baker",
         EngineAccountRef = "store-1",
+        ServiceLevels = new List<MerchantServiceLevel>
+        {
+            new()
+            {
+                CheckoutCode = "STD",
+                CheckoutLabel = "Delicate Courier Delivery",
+                EngineCode = "standard",
+                EstimatedDeliveryDays = 1,
+            },
+        },
         DefaultPackageTypeId = Guid.Empty.ToString(),
         Collection = new MerchantAddress { Formatted = "Menlyn", Latitude = -25.78, Longitude = 28.27 }
     };

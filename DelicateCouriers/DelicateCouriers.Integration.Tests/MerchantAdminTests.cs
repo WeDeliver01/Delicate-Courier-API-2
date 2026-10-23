@@ -44,6 +44,16 @@ public class MerchantAdminTests : IClassFixture<MerchantAdminTests.Host>
         Name = "Honey Bee Baker",
         EngineAccountRef = $"store-{storeId}",
         EngineAccountId = "11111111-1111-4111-8111-111111111111",
+        ServiceLevels = new List<MerchantServiceLevel>
+        {
+            new()
+            {
+                CheckoutCode = "STD",
+                CheckoutLabel = "Delicate Courier Delivery",
+                EngineCode = "standard",
+                EstimatedDeliveryDays = 1,
+            },
+        },
         DefaultPackageTypeId = Guid.Empty.ToString(),
         WooCommerceUrl = "https://honeybee.example",
         WooConsumerKey = "ck_live",

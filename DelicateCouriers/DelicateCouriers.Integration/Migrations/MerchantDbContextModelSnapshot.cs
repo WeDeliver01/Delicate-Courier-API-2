@@ -63,16 +63,6 @@ namespace DelicateCouriers.Integration.Migrations
                         .IsRequired()
                         .HasColumnType("text[]");
 
-                    b.Property<string>("CheckoutRateLabel")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("CheckoutServiceLevelCode")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -89,14 +79,6 @@ namespace DelicateCouriers.Integration.Migrations
                         .IsRequired()
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)");
-
-                    b.Property<string>("EngineServiceLevelCode")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<int>("EstimatedDeliveryDays")
-                        .HasColumnType("integer");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
@@ -182,8 +164,44 @@ namespace DelicateCouriers.Integration.Migrations
                                 .HasForeignKey("MerchantRecordStoreId");
                         });
 
+                    b.OwnsMany("DelicateCouriers.Integration.Merchants.MerchantServiceLevel", "ServiceLevels", b1 =>
+                        {
+                            b1.Property<int>("MerchantRecordStoreId")
+                                .HasColumnType("integer");
+
+                            b1.Property<int>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer");
+
+                            b1.Property<string>("CheckoutCode")
+                                .IsRequired()
+                                .HasColumnType("text");
+
+                            b1.Property<string>("CheckoutLabel")
+                                .IsRequired()
+                                .HasColumnType("text");
+
+                            b1.Property<string>("EngineCode")
+                                .IsRequired()
+                                .HasColumnType("text");
+
+                            b1.Property<int>("EstimatedDeliveryDays")
+                                .HasColumnType("integer");
+
+                            b1.HasKey("MerchantRecordStoreId", "Id");
+
+                            b1.ToTable("merchants");
+
+                            b1.ToJson("ServiceLevels");
+
+                            b1.WithOwner()
+                                .HasForeignKey("MerchantRecordStoreId");
+                        });
+
                     b.Navigation("Collection")
                         .IsRequired();
+
+                    b.Navigation("ServiceLevels");
                 });
 #pragma warning restore 612, 618
         }

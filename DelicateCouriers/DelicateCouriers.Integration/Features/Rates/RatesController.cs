@@ -69,26 +69,75 @@ public class RatesController : ControllerBase
                 });
             }
 
-            var quote = await _engine.CreateQuoteAsync(
-                merchant.EngineAccountRef,
-                BuildQuoteRequest(merchant, request, destination),
-                cancellationToken);
-
-            return Ok(new GetRatesResponseDto
+            if (merchant.ServiceLevels.Count == 0)
             {
-                Success = true,
-                Rates = new List<RateOptionDto>
+                // Nothing to offer. Says so rather than returning an empty success, which the
+                // plugin would render as "no delivery available" with no way to tell the
+                // difference from a service that is down.
+                _logger.LogWarning(
+                    "Store {StoreId} has no service levels configured", request.StoreId);
+                return Ok(new GetRatesResponseDto
                 {
-                    new()
+                    Success = false,
+                    ErrorMessage = "No shipping rates available"
+                });
+            }
+
+            // Priced together rather than one after another: a shopper is waiting on this, and
+            // three levels in sequence is three round trips of latency at checkout.
+            var quotes = await Task.WhenAll(merchant.ServiceLevels.Select(async level =>
+            {
+                try
+                {
+                    var quote = await _engine.CreateQuoteAsync(
+                        merchant.EngineAccountRef,
+                        BuildQuoteRequest(merchant, level, request, destination),
+                        cancellationToken);
+
+                    return (Rate: (RateOptionDto?)new RateOptionDto
                     {
-                        ServiceLevelCode = merchant.CheckoutServiceLevelCode,
-                        ServiceLevelName = merchant.CheckoutRateLabel,
+                        ServiceLevelCode = level.CheckoutCode,
+                        ServiceLevelName = level.CheckoutLabel,
                         Cost = ToRand(quote.Breakdown.TotalCents),
                         Currency = "ZAR",
-                        EstimatedDeliveryDays = merchant.EstimatedDeliveryDays
-                    }
+                        EstimatedDeliveryDays = level.EstimatedDeliveryDays
+                    }, Error: (Exception?)null);
                 }
-            });
+                catch (Exception ex)
+                {
+                    // One level failing must not take the others down with it. A shopper
+                    // offered Standard when Express could not be priced is better served than
+                    // one offered nothing. Kept rather than swallowed, because if they all
+                    // fail the caller is owed the real answer.
+                    _logger.LogWarning(ex,
+                        "Store {StoreId}: could not price service level {Code}",
+                        request.StoreId, level.CheckoutCode);
+                    return (Rate: (RateOptionDto?)null, Error: ex);
+                }
+            }));
+
+            var priced = quotes.Where(q => q.Rate is not null).Select(q => q.Rate!).ToList();
+
+            if (priced.Count == 0)
+            {
+                // Nothing priced at all. That is the Engine being unavailable, not a shopper
+                // typing an address we cannot reach, so it keeps the original contract: a 500
+                // carrying a reference the merchant can quote, with the detail only in the log.
+                // Reporting it as "no rates available" would tell a merchant their checkout is
+                // working as intended while it silently sells nothing.
+                var first = quotes.Select(q => q.Error).FirstOrDefault(e => e is not null);
+                if (first is not null) throw first;
+
+                _logger.LogError(
+                    "Store {StoreId}: no service level could be priced", request.StoreId);
+                return Ok(new GetRatesResponseDto
+                {
+                    Success = false,
+                    ErrorMessage = "No shipping rates available"
+                });
+            }
+
+            return Ok(new GetRatesResponseDto { Success = true, Rates = priced });
         }
         catch (Exception ex)
         {
@@ -128,6 +177,7 @@ public class RatesController : ControllerBase
 
     private static EngineQuoteRequest BuildQuoteRequest(
         Merchant merchant,
+        MerchantServiceLevel level,
         GetRatesRequestDto request,
         ResolvedPlace destination)
     {
@@ -135,7 +185,7 @@ public class RatesController : ControllerBase
         // it as a loop from the depot, which is why it needs both ends rather than a distance.
         return new EngineQuoteRequest
         {
-            ServiceLevelCode = merchant.EngineServiceLevelCode,
+            ServiceLevelCode = level.EngineCode,
             Collection = new EngineCollection
             {
                 Address = ToEngineAddress(merchant.Collection),

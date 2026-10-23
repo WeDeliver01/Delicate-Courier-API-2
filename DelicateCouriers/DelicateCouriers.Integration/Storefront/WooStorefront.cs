@@ -237,4 +237,26 @@ public static class Fulfillment
     private static bool ContainsKeyword(string? value) =>
         !string.IsNullOrWhiteSpace(value)
         && CollectionKeywords.Any(k => value.Contains(k, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Which of a merchant's service levels the shopper actually paid for.
+    ///
+    /// The plugin names each rate <c>delicate_courier_platform_&lt;code&gt;</c>, lowercased, and
+    /// WooCommerce hands that id back on the order. Matching on it is how a shopper who chose
+    /// Express gets an Express booking rather than whatever the merchant happens to list first.
+    ///
+    /// Returns null when the id matches nothing the merchant offers — a merchant may have
+    /// removed a level between the shopper choosing it and the order arriving, and guessing
+    /// which of the remaining ones they meant would quietly change what was sold.
+    /// </summary>
+    public static MerchantServiceLevel? MatchServiceLevel(
+        Merchant merchant, ChosenShippingMethod? method)
+    {
+        var id = method?.MethodId;
+        if (string.IsNullOrWhiteSpace(id)) return null;
+
+        return merchant.ServiceLevels.FirstOrDefault(level =>
+            !string.IsNullOrWhiteSpace(level.CheckoutCode)
+            && id.EndsWith("_" + level.CheckoutCode, StringComparison.OrdinalIgnoreCase));
+    }
 }

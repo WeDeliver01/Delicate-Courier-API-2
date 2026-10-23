@@ -94,6 +94,39 @@ public sealed class OrderBookingService
             return new BookingResult(BookingOutcome.Skipped, "collection_shipping_method");
         }
 
+        // Which delivery option to book. Prefer the one the shopper actually chose: a
+        // merchant offering next-day and same-day must not deliver the cheaper one to someone
+        // who paid for the dearer.
+        //
+        // No match is not a failure. A merchant may list our rates beside their own flat rate,
+        // and a shopper who picks theirs still wants delivering — refusing would stop booking
+        // orders that have always booked. The same goes for a merchant with no REST
+        // credentials, who cannot be asked at all. Both fall back to the first level, which is
+        // how every merchant behaved when there was only one.
+        var level = Fulfillment.MatchServiceLevel(merchant, method)
+                    ?? merchant.ServiceLevels.FirstOrDefault();
+
+        if (level is null)
+        {
+            _logger.LogWarning(
+                "Cannot book WooOrderID {WooOrderId}: store {StoreId} offers no service levels",
+                payload.WooOrderId, merchant.StoreId);
+            return new BookingResult(BookingOutcome.Rejected, "no_service_levels");
+        }
+
+        if (merchant.ServiceLevels.Count > 1
+            && Fulfillment.MatchServiceLevel(merchant, method) is null)
+        {
+            // Worth saying out loud: several on offer, and we are booking the first because
+            // the shopper's actual choice could not be read. Usually missing REST credentials.
+            _logger.LogWarning(
+                "WooOrderID {WooOrderId}: store {StoreId} offers {Count} service levels and the "
+                + "chosen method {MethodId} matched none — booking {Code}. Without WooCommerce "
+                + "REST credentials the shopper's choice cannot be read back.",
+                payload.WooOrderId, merchant.StoreId, merchant.ServiceLevels.Count,
+                method?.MethodId ?? "(not asked)", level.CheckoutCode);
+        }
+
         var reference = BookingRules.CustomerReferenceFor(payload.WooOrderId);
 
         // Ask before booking. A previous attempt may have succeeded at the Engine and died
@@ -124,7 +157,7 @@ public sealed class OrderBookingService
             return new BookingResult(BookingOutcome.Rejected, "address_unresolvable");
         }
 
-        var request = BuildRequest(merchant, payload, destination, reference);
+        var request = BuildRequest(merchant, level, payload, destination, reference);
 
         try
         {
@@ -165,11 +198,12 @@ public sealed class OrderBookingService
 
     private static EngineBookingRequest BuildRequest(
         Merchant merchant,
+        MerchantServiceLevel level,
         PluginOrderPayload payload,
         ResolvedPlace destination,
         string reference) => new()
     {
-        ServiceLevelCode = merchant.EngineServiceLevelCode,
+        ServiceLevelCode = level.EngineCode,
         IdempotencyKey = reference,
         CustomerReference = reference,
 

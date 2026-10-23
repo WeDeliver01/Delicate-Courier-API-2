@@ -29,9 +29,6 @@ public sealed class MerchantDbContext : DbContext
         merchant.Property(m => m.Name).IsRequired().HasMaxLength(200);
         merchant.Property(m => m.EngineAccountRef).IsRequired().HasMaxLength(120);
         merchant.Property(m => m.EngineAccountId).HasMaxLength(64);
-        merchant.Property(m => m.CheckoutServiceLevelCode).IsRequired().HasMaxLength(32);
-        merchant.Property(m => m.CheckoutRateLabel).IsRequired().HasMaxLength(200);
-        merchant.Property(m => m.EngineServiceLevelCode).IsRequired().HasMaxLength(32);
         merchant.Property(m => m.DefaultPackageTypeId).IsRequired().HasMaxLength(64);
         merchant.Property(m => m.WebhookSecret).IsRequired().HasMaxLength(200);
         merchant.Property(m => m.BookingTriggerStatuses).HasColumnType("text[]");
@@ -41,6 +38,15 @@ public sealed class MerchantDbContext : DbContext
         merchant.OwnsOne(m => m.Collection, address =>
         {
             address.ToJson();
+        });
+
+        // Stored as JSON, like the address, and for the same reason: it is a list owned
+        // entirely by one merchant, read whole and written whole. A join table would buy
+        // querying nobody does, and cost a migration every time the shape changes. Order is
+        // the order the shopper sees, so the array's own order is the record.
+        merchant.OwnsMany(m => m.ServiceLevels, level =>
+        {
+            level.ToJson();
         });
 
         // Routing an inbound status callback is a lookup on this, on every status change of
@@ -65,11 +71,11 @@ public sealed class MerchantRecord
     public string EngineAccountRef { get; set; } = string.Empty;
     public string? EngineAccountId { get; set; }
     public MerchantAddress Collection { get; set; } = new();
-    public string CheckoutServiceLevelCode { get; set; } = "STD";
-    public string CheckoutRateLabel { get; set; } = "Delicate Courier Delivery";
-    public string EngineServiceLevelCode { get; set; } = "standard";
+
+    /// <summary>What this merchant offers at checkout, in the order the shopper sees it.</summary>
+    public List<MerchantServiceLevel> ServiceLevels { get; set; } = new();
+
     public string DefaultPackageTypeId { get; set; } = string.Empty;
-    public int EstimatedDeliveryDays { get; set; } = 1;
 
     /// <summary>
     /// Stored as given, because verifying an HMAC needs the original bytes — there is no
@@ -97,11 +103,8 @@ public sealed class MerchantRecord
         EngineAccountRef = EngineAccountRef,
         EngineAccountId = EngineAccountId,
         Collection = Collection,
-        CheckoutServiceLevelCode = CheckoutServiceLevelCode,
-        CheckoutRateLabel = CheckoutRateLabel,
-        EngineServiceLevelCode = EngineServiceLevelCode,
+        ServiceLevels = ServiceLevels,
         DefaultPackageTypeId = DefaultPackageTypeId,
-        EstimatedDeliveryDays = EstimatedDeliveryDays,
         WebhookSecret = WebhookSecret,
         BookingTriggerStatuses = BookingTriggerStatuses,
         WooCommerceUrl = WooCommerceUrl,
