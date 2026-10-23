@@ -39,7 +39,10 @@ import sys
 import urllib.error
 import urllib.request
 
-API_ENV = "/etc/delicate/api.env"
+# The new portal's env by default. Both portals have a User table and both are
+# seeded the same way, but they are different databases and seeding the wrong one
+# creates an account that signs in nowhere. Named explicitly rather than guessed.
+DEFAULT_ENV = "/etc/delicate/portal-api.env"
 
 
 def read_env(path: str) -> dict[str, str]:
@@ -76,7 +79,7 @@ def pg_env(connection_string: str) -> dict[str, str]:
         PGDATABASE=parts.get("database", "postgres"),
         PGUSER=parts.get("username", parts.get("userid", "")),
         PGPASSWORD=parts.get("password", ""),
-        PGSSLMODE=parts.get("sslmode", "require").lower(),
+        PGSSLMODE=parts.get("sslmode", "prefer").lower(),
     )
     return env
 
@@ -152,6 +155,15 @@ def set_password(env: dict[str, str], email: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--email", required=True)
+    parser.add_argument(
+        "--env-file",
+        default=DEFAULT_ENV,
+        help=(
+            "Which service to seed into. Defaults to the new portal "
+            "(/etc/delicate/portal-api.env). Pass /etc/delicate/api.env for app2, "
+            "which is live production."
+        ),
+    )
     parser.add_argument("--first-name", default="Platform")
     parser.add_argument("--last-name", default="Admin")
     parser.add_argument(
@@ -184,10 +196,10 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    env = read_env(API_ENV)
+    env = read_env(args.env_file)
     for required in ("SUPABASE_CONNECTION_STRING", "SUPABASE_SERVICE_ROLE_KEY", "NEXT_PUBLIC_SUPABASE_URL"):
         if not env.get(required):
-            sys.exit(f"{required} is missing or empty in {API_ENV}")
+            sys.exit(f"{required} is missing or empty in {args.env_file}")
 
     db = pg_env(env["SUPABASE_CONNECTION_STRING"])
     email = args.email.strip().lower()
@@ -242,36 +254,68 @@ def main() -> None:
             sys.exit("They did not match. Nothing was created.")
         body["password"] = password
 
-    # Supabase first, because it is the system of record for authentication and
-    # the local row is meaningless without an id to point at.
-    created = supabase(env, "POST", "/auth/v1/admin/users", body)
-    supabase_id = created.get("id")
-    if not supabase_id:
-        sys.exit(f"Supabase did not return an id: {json.dumps(created)[:200]}")
-    print(f"Supabase user created: {supabase_id}")
+    # Supabase first, because it is the system of record for authentication and the
+    # local row is meaningless without an id to point at.
+    #
+    # The address may already exist there. The two portals share one Supabase project,
+    # so somebody who can sign in to the other one has an identity here already —
+    # which is the point of sharing it. Reuse that identity rather than refusing:
+    # what is missing is a profile in this database, not an account.
+    existing_id = find_supabase_user(env, email)
+    if existing_id:
+        supabase_id = existing_id
+        print(f"Supabase already knows {email} ({supabase_id}) — reusing that identity.")
+        print("No password was changed. Theirs still works, or set one with --set-password.")
+    else:
+        created = supabase(env, "POST", "/auth/v1/admin/users", body)
+        supabase_id = created.get("id")
+        if not supabase_id:
+            sys.exit(f"Supabase did not return an id: {json.dumps(created)[:200]}")
+        print(f"Supabase user created: {supabase_id}")
 
     # If this fails the Supabase user is removed again, so a retry is clean
     # rather than colliding with a half-made account from the attempt before.
     try:
-        # PasswordHash is a leftover. SupabaseAuthMigration drops it, but that
-        # migration has never been applied to production — and must not be, because
-        # it truncates the User table on the way past. Entity Framework no longer
-        # maps the column, so nothing reads this value; it exists only to satisfy a
-        # NOT NULL constraint that should have gone years ago. The text says so, so
-        # that whoever finds it in the table is not left wondering what it hashes.
-        psql(
-            db,
-            f"""
-            INSERT INTO "User" ("SupabaseUserId", "TenantID", "Email", "FirstName", "LastName",
-                                "Role", "IsActive", "CreatedOn", "CreatedBy", "PasswordHash")
-            VALUES ('{supabase_id}', {args.tenant_id}, '{email}',
-                    '{args.first_name}', '{args.last_name}', '{args.role}', true, now(),
-                    'seed-script', 'unused-supabase-owns-credentials')
-            """,
-        )
+        # PasswordHash is a leftover, and only on some databases.
+        #
+        # SupabaseAuthMigration drops it. That migration has no .Designer.cs, so EF
+        # does not treat it as part of the chain and never applied it to app2 —
+        # which still has the column, NOT NULL, and rejects any insert that omits
+        # it. The new portal's database was built with that step applied by hand and
+        # does not have the column at all. So the script asks rather than assumes,
+        # and works against either.
+        #
+        # Where it does exist, nothing reads it: Entity Framework stopped mapping
+        # the column when Supabase took over credentials. The text says so, so that
+        # whoever finds it in the table is not left wondering what it hashes.
+        has_password_hash = psql(db, """
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'User' AND column_name = 'PasswordHash'
+        """)
+
+        columns = ['"SupabaseUserId"', '"TenantID"', '"Email"', '"FirstName"',
+                   '"LastName"', '"Role"', '"IsActive"', '"CreatedOn"', '"CreatedBy"']
+        values = [f"'{supabase_id}'", str(args.tenant_id), f"'{email}'",
+                  f"'{args.first_name}'", f"'{args.last_name}'", f"'{args.role}'",
+                  'true', 'now()', "'seed-script'"]
+
+        if has_password_hash:
+            columns.append('"PasswordHash"')
+            values.append("'unused-supabase-owns-credentials'")
+
+        psql(db, f"""
+            INSERT INTO "User" ({', '.join(columns)})
+            VALUES ({', '.join(values)})
+            """)
+
     except SystemExit:
-        print("Local insert failed — removing the Supabase user so this can be retried cleanly.")
-        supabase(env, "DELETE", f"/auth/v1/admin/users/{supabase_id}")
+        if existing_id:
+            # Borrowed, not created. Deleting it would lock this person out of the
+            # other portal as well, to tidy up after a failure here.
+            print("Local insert failed. The Supabase identity was already there and is left alone.")
+        else:
+            print("Local insert failed — removing the Supabase user so this can be retried cleanly.")
+            supabase(env, "DELETE", f"/auth/v1/admin/users/{supabase_id}")
         raise
 
     print(f"Done. {email} is now {args.role} on tenant {args.tenant_id}.")
