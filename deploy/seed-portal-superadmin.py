@@ -217,7 +217,18 @@ def main() -> None:
 
     print(f"About to create {args.role} {email} on tenant {args.tenant_id} ({tenant}).")
 
-    body = {"email": email, "email_confirm": True}
+    # The role the frontend actually reads is this one, not the database column.
+    # auth-provider.tsx takes it from the token's app_metadata.app_role, and a user
+    # without it is "User" — signed in, and shown none of the admin screens. The
+    # database row decides what the API allows; this decides what the menu shows,
+    # and they have to agree or the account looks broken in a way that suggests
+    # nothing about the cause. app_metadata rather than user_metadata because only
+    # the service role may write it: a user cannot re-tenant or promote themselves.
+    body = {
+        "email": email,
+        "email_confirm": True,
+        "app_metadata": {"app_role": args.role, "tenant_id": args.tenant_id},
+    }
     if args.no_password:
         # No credential is chosen here at all. The account exists and is confirmed;
         # the person it belongs to sets the password themselves through the normal
