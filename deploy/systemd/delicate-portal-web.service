@@ -1,0 +1,19 @@
+[Unit]
+Description=Delicate Courier Portal Web (app.delicatecourier.co.za)
+After=network-online.target delicate-portal-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=delicate
+WorkingDirectory=/opt/delicate/portal-web/.next/standalone
+ExecStart=/usr/bin/node server.js
+Environment=NODE_ENV=production
+Environment=PORT=5100
+Environment=HOSTNAME=127.0.0.1
+Restart=always
+RestartSec=5
+SyslogIdentifier=delicate-portal-web
+
+[Install]
+WantedBy=multi-user.target

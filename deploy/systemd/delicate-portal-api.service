@@ -1,0 +1,19 @@
+[Unit]
+Description=Delicate Courier Portal API (app.delicatecourier.co.za)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=delicate
+WorkingDirectory=/opt/delicate/portal-api
+ExecStart=/usr/bin/dotnet /opt/delicate/portal-api/DelicateCouriers.ApiService.dll
+EnvironmentFile=/etc/delicate/portal-api.env
+Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
+Restart=always
+RestartSec=5
+KillSignal=SIGINT
+SyslogIdentifier=delicate-portal-api
+
+[Install]
+WantedBy=multi-user.target
