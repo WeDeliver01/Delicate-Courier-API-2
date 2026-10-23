@@ -120,12 +120,10 @@ public class GetRatesController : ControllerBase
                     Name = store.CollectionContactName ?? store.StoreName,
                     Mobile = store.CollectionContactPhone,
                     Email = store.CollectionContactEmail
-                },
-                AccountId = store.ShiplogicAccountId,
-                ProviderId = store.ShiplogicProviderId
+                }
             };
 
-            // 3a. Resolve collection lat/lng. Shiplogic's server-side
+            // 3a. Resolve collection lat/lng. The Engine prices from coordinates, and a
             // geocoder silently fails for some of our addresses and returns
             // rates:null. Empirically, supplying explicit lat/lng makes the
             // same payload return real rates. Prefer the store's stored
@@ -413,10 +411,10 @@ public class GetRatesController : ControllerBase
     {
         return new DebugInfoDto
         {
-            ShiplogicEndpoint = d?.Endpoint,
-            ShiplogicRequestJson = RedactRequestJson(d?.RequestJson),
-            ShiplogicStatusCode = d?.StatusCode,
-            ShiplogicRawResponseBody = Truncate(d?.RawResponseBody, MaxDebugBodyChars),
+            UpstreamEndpoint = d?.Endpoint,
+            UpstreamRequestJson = RedactRequestJson(d?.RequestJson),
+            UpstreamStatusCode = d?.StatusCode,
+            UpstreamRawResponseBody = Truncate(d?.RawResponseBody, MaxDebugBodyChars),
             ExceptionChain = exceptionChain
         };
     }

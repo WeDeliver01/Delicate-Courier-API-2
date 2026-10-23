@@ -384,7 +384,7 @@ namespace DelicateCouriers.ApiService.Features.WooCommerce
             if (string.Equals(payload.FulfillmentType, "collect", StringComparison.OrdinalIgnoreCase))
             {
                 _logger.LogInformation(
-                    "Skipping Shiplogic shipment creation for collect order. WooOrderID: {WooOrderId}",
+                    "Skipping booking for collect order. WooOrderID: {WooOrderId}",
                     payload.WooOrderId);
                 return false;
             }

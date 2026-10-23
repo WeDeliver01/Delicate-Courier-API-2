@@ -35,8 +35,8 @@ namespace DelicateCouriers.ApiService.Features.Stores.DTOs
         public string? CollectionCompanyName { get; set; }
 
         // Shiplogic Configuration
-        public int ShiplogicProviderId { get; set; }
-        public int ShiplogicAccountId { get; set; }
+        public string EngineAccountRef { get; set; } = string.Empty;
+        public string EnginePackageTypeId { get; set; } = string.Empty;
         public string DefaultServiceLevel { get; set; } = "STD";
 
         // Special Trip fallback (distance-priced rate when Shiplogic has no rate)
@@ -84,8 +84,8 @@ namespace DelicateCouriers.ApiService.Features.Stores.DTOs
         public string? CollectionCompanyName { get; set; }
 
         // Shiplogic Configuration
-        public int? ShiplogicProviderId { get; set; }
-        public int? ShiplogicAccountId { get; set; }
+        public string? EngineAccountRef { get; set; }
+        public string? EnginePackageTypeId { get; set; }
         public string? DefaultServiceLevel { get; set; }
 
         // Special Trip fallback. Null = leave unchanged; 0 CostPerKm disables.
@@ -137,8 +137,8 @@ namespace DelicateCouriers.ApiService.Features.Stores.DTOs
         public string? CollectionCompanyName { get; set; }
 
         // Shiplogic Configuration
-        public int ShiplogicProviderId { get; set; }
-        public int ShiplogicAccountId { get; set; }
+        public string EngineAccountRef { get; set; } = string.Empty;
+        public string EnginePackageTypeId { get; set; } = string.Empty;
         public string DefaultServiceLevel { get; set; } = "STD";
 
         // Special Trip fallback configuration

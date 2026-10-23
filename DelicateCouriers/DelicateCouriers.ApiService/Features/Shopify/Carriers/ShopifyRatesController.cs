@@ -125,14 +125,14 @@ public class ShopifyRatesController : ControllerBase
                 return Ok(new ShopifyRateResponse { Rates = new List<ShopifyRate>() });
             }
 
-            // 2. Resolve the Shiplogic bearer token for this tenant (same
-            //    source GetRatesController uses).
-            var bearer = store.Tenant?.ShiplogicBearerToken;
-            if (string.IsNullOrWhiteSpace(bearer))
+            // 2. The store must be mapped to an Engine account before anything can be
+            //    priced for it. Returning no rates is the right shape of answer here:
+            //    Shopify shows the customer nothing rather than an error page.
+            if (string.IsNullOrWhiteSpace(store.EngineAccountRef))
             {
                 _logger.LogError(
-                    "Cannot quote rates for store {StoreId}: no Shiplogic bearer configured for tenant {TenantId}",
-                    storeId, store.TenantID);
+                    "Cannot quote rates for store {StoreId}: no Engine account reference set",
+                    storeId);
                 return Ok(new ShopifyRateResponse { Rates = new List<ShopifyRate>() });
             }
 
@@ -337,8 +337,6 @@ public class ShopifyRatesController : ControllerBase
                 Mobile = store.CollectionContactPhone,
                 Email = store.CollectionContactEmail
             },
-            AccountId = store.ShiplogicAccountId,
-            ProviderId = store.ShiplogicProviderId
         };
 
         // Prefer the store's persisted coordinates, fall back to the geocoder

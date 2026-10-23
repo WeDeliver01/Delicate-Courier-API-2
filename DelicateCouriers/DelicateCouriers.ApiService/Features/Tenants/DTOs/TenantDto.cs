@@ -11,5 +11,4 @@ public class TenantDto
     public string ContactPhone { get; set; } = string.Empty;
     public bool IsActive { get; set; }
     public DateTime CreatedOn { get; set; }
-    public bool HasShiplogicToken { get; set; }
 }

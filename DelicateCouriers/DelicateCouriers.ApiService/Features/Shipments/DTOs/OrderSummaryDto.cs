@@ -1,4 +1,4 @@
-﻿namespace DelicateCouriers.ApiService.Features.Shiplogic.DTOs
+﻿namespace DelicateCouriers.ApiService.Features.Shipments.DTOs
 {
     /// <summary>
     /// Summary of an order for selection/display

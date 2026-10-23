@@ -19,11 +19,15 @@ public class GetRatesResponseDto
     public DebugInfoDto? Debug { get; set; }
 }
 
+/// <summary>
+/// What debug mode shows an operator when rates fail. Named for the upstream it
+/// actually describes now, which is the delivery call rather than a courier's REST API.
+/// </summary>
 public class DebugInfoDto
 {
-    public string? ShiplogicEndpoint { get; set; }
-    public string? ShiplogicRequestJson { get; set; }
-    public int? ShiplogicStatusCode { get; set; }
-    public string? ShiplogicRawResponseBody { get; set; }
+    public string? UpstreamEndpoint { get; set; }
+    public string? UpstreamRequestJson { get; set; }
+    public int? UpstreamStatusCode { get; set; }
+    public string? UpstreamRawResponseBody { get; set; }
     public string? ExceptionChain { get; set; }
 }

@@ -13,7 +13,7 @@ namespace DelicateCouriers.ApiService.Features.Shipments;
 
 /// <summary>
 /// Orchestrates the complete shipment creation workflow
-/// Coordinates between Order, Store, Shiplogic API, and database
+/// Coordinates between Order, Store, the Engine API, and database
 /// </summary>
 public class ShipmentOrchestrationService
 {
@@ -44,16 +44,16 @@ public class ShipmentOrchestrationService
 
     /// <summary>
     /// Create a shipment for an order.
-    /// Complete workflow: Order → Shiplogic → Save shipment → Retrieve label.
+    /// Complete workflow: Order → the Engine → Save shipment → Retrieve label.
     ///
     /// IMPORTANT — Hangfire retry behaviour:
-    ///  * Transient errors (Shiplogic 5xx, network failures, DB outages,
+    ///  * Transient errors (the Engine 5xx, network failures, DB outages,
     ///    timeouts, anything unexpected) are RE-THROWN so Hangfire retries
     ///    them with exponential backoff. The job is configured to retry up
     ///    to 10 times (~24h total), after which it ends up in the Failed
     ///    queue and can be retried manually from the Hangfire dashboard.
     ///  * Permanent errors (order missing, store config incomplete, no
-    ///    tenant Shiplogic token) RETURN a failure result without throwing,
+    ///    tenant the Engine token) RETURN a failure result without throwing,
     ///    so Hangfire does not retry them — retrying won't help, an admin
     ///    has to fix the configuration. We log loudly so they're visible.
     ///  * "Order already has a shipment" is idempotent success — handles
@@ -94,7 +94,7 @@ public class ShipmentOrchestrationService
         }
 
         // Already booked — treat replay as success so a restart mid-execution
-        // does not create duplicate Shiplogic consignments.
+        // does not create duplicate the Engine consignments.
         if (order.Shipment != null)
         {
             _logger.LogInformation("Order {OrderId} already has Shipment {ShipmentId} — idempotent skip.", orderId, order.Shipment.ShipmentID);
@@ -111,7 +111,7 @@ public class ShipmentOrchestrationService
         // or an order-status-change hook that re-fires booking after the
         // status moves from pending → processing.
         //
-        // Whichever it was, the fix is the same: refuse to call Shiplogic for
+        // Whichever it was, the fix is the same: refuse to call the Engine for
         // any order whose persisted FulfillmentType is "collect", at the
         // single chokepoint that ALL booking paths funnel through. New
         // trigger paths added in future are automatically covered.
@@ -122,10 +122,10 @@ public class ShipmentOrchestrationService
         // failed-queue entry.
         if (string.Equals(order.FulfillmentType, "collect", StringComparison.OrdinalIgnoreCase))
         {
-            var skipMsg = $"Order {orderId} (WooOrderID {order.WooOrderID}) is a customer-collect order — refusing to book a Shiplogic shipment.";
+            var skipMsg = $"Order {orderId} (WooOrderID {order.WooOrderID}) is a customer-collect order — refusing to book a delivery.";
             _logger.LogInformation(
                 "Layer-2 collect guard hit for OrderID {OrderId} (WooOrderID {WooOrderId}). " +
-                "No Shiplogic call made, no address read, no charge to merchant.",
+                "No booking made, no address read, no charge to merchant.",
                 orderId, order.WooOrderID);
             await _systemEvents.LogAsync(new SystemEventEntry
             {
@@ -135,7 +135,7 @@ public class ShipmentOrchestrationService
                 TenantId = order.TenantID,
                 EntityType = "Order",
                 EntityRef = $"#{order.WooOrderNumber}",
-                Message = $"Skipped Shiplogic booking for Order #{order.WooOrderNumber}: customer is collecting in person.",
+                Message = $"Skipped booking for Order #{order.WooOrderNumber}: customer is collecting in person.",
                 Details = new
                 {
                     orderId,
@@ -158,7 +158,7 @@ public class ShipmentOrchestrationService
         if (terminalStatuses.Contains(order.OrderStatus, StringComparer.OrdinalIgnoreCase))
         {
             var terminalMsg = $"Order {orderId} (#{order.WooOrderNumber}) is in terminal status '{order.OrderStatus}' — refusing to book a shipment.";
-            _logger.LogInformation("Terminal-status guard hit for OrderID {OrderId}: status '{Status}'. No Shiplogic call made.",
+            _logger.LogInformation("Terminal-status guard hit for OrderID {OrderId}: status '{Status}'. No booking made.",
                 orderId, order.OrderStatus);
             return ShipmentCreationResult.Failure(terminalMsg);
         }
@@ -168,7 +168,7 @@ public class ShipmentOrchestrationService
         // special_trip after intake verified its shipping line via Woo REST
         // (label-based reclassification), so it is delivery by definition —
         // re-running the collection check would just burn a Woo REST call.
-        // Shiplogic's API refuses SPX (special trip) creation on this account
+        // the Engine's API refuses SPX (special trip) creation on this account
         // ("You do not have permission to create rates for special trips",
         // verified live 2026-08-13) and that permission cannot be enabled.
         // Out-of-coverage orders therefore CANNOT be auto-booked. Instead of
@@ -176,7 +176,7 @@ public class ShipmentOrchestrationService
         //   1. leave the order unbooked (no Shipment row),
         //   2. write a note + _dcp_special_trip meta back to the Woo order,
         //   3. email the platform admin with everything needed to book the
-        //      trip manually in the Shiplogic dashboard,
+        //      trip manually in the the Engine dashboard,
         //   4. emit a system event (also the idempotency marker so webhook
         //      retries / re-enqueues don't send duplicate emails).
         // Returns Failure (not throw) so Hangfire does NOT retry.
@@ -205,7 +205,7 @@ public class ShipmentOrchestrationService
         // =======================================================================
 
         // === Operational failures (THROW so they retry AND are visible) ========
-        // Store config and tenant Shiplogic token are "fixable operationally":
+        // Store config and tenant the Engine token are "fixable operationally":
         // an admin can correct them and the next retry will succeed. We THROW
         // (not silently return Failure) so the job lives in Hangfire and is
         // visible in the dashboard until the admin fixes the underlying data.
@@ -220,7 +220,7 @@ public class ShipmentOrchestrationService
         DelicateCouriers.ApiService.Features.Delivery.Shapes.CreateShipmentRequest shipmentRequest;
         try
         {
-            _logger.LogInformation("Mapping Order {OrderId} -> Shiplogic request (StoreID={StoreId}).", orderId, order.StoreID);
+            _logger.LogInformation("Mapping Order {OrderId} -> the Engine request (StoreID={StoreId}).", orderId, order.StoreID);
             shipmentRequest = await _orderToShipmentMapper.MapOrderToShipmentAsync(order, order.Store);
             _logger.LogInformation(
                 "Mapper complete for OrderID: {OrderId}. Parcels={Parcels}, Service={Service}, CustomerRef={Ref}",
@@ -243,15 +243,16 @@ public class ShipmentOrchestrationService
 
         _logger.LogInformation("Looking up tenant {TenantId} for OrderID: {OrderId}", order.TenantID, orderId);
         var tenant = await _context.Tenants.AsNoTracking().FirstOrDefaultAsync(t => t.TenantID == order.TenantID);
-        if (tenant == null || string.IsNullOrWhiteSpace(tenant.ShiplogicBearerToken))
+        if (string.IsNullOrWhiteSpace(order.Store?.EngineAccountRef))
         {
-            var msg = $"Tenant {order.TenantID} has no Shiplogic bearer token — cannot book Order {orderId}. Configure the tenant token and the next retry will succeed.";
+            var msg = $"Store for Order {orderId} has no Engine account reference — cannot book. "
+                      + "Set it on the store and the next retry will succeed.";
             _logger.LogError(msg);
             throw new InvalidOperationException(msg);
         }
 
         // === Transient failures (let exceptions propagate so Hangfire retries) =
-        // The whole "acquire advisory lock → check Shiplogic → create shipment
+        // The whole "acquire advisory lock → check the Engine → create shipment
         // → save row → commit" block must run inside ONE transaction so the
         // pg_advisory_xact_lock survives until the row is durable. But we
         // also configure EF Core with EnableRetryOnFailure (see Program.cs),
@@ -263,8 +264,8 @@ public class ShipmentOrchestrationService
         // — which is exactly what was silently failing every Hangfire shipment
         // job in production. Wrap accordingly. Re-running the lambda is safe
         // because (a) the advisory-lock re-check below catches a sibling that
-        // committed a Shipment, and (b) the Shiplogic FindShipmentByCustomerReference
-        // guard below makes the Shiplogic-create idempotent.
+        // committed a Shipment, and (b) the the Engine FindShipmentByCustomerReference
+        // guard below makes the the Engine-create idempotent.
         // These are populated by the strategy delegate below. They live OUTSIDE
         // the lambda so the post-transaction label fetch can see them, but they
         // MUST be reset at the top of each attempt — NpgsqlRetryingExecutionStrategy
@@ -288,7 +289,7 @@ public class ShipmentOrchestrationService
                 // Two Hangfire workers could enqueue + pick up CreateShipmentForOrderAsync
                 // for the same orderId at the same time (duplicate webhook deliveries,
                 // manual re-trigger after stuck job, etc). Without serialization they
-                // would BOTH see no local shipment, BOTH miss on the Shiplogic lookup,
+                // would BOTH see no local shipment, BOTH miss on the the Engine lookup,
                 // and BOTH create a consignment.
                 //
                 // We use a Postgres transaction-scoped advisory lock keyed on orderId.
@@ -317,15 +318,15 @@ public class ShipmentOrchestrationService
 
             // CROSS-SYSTEM IDEMPOTENCY GUARD
             // ------------------------------
-            // Before asking Shiplogic to CREATE a shipment, ask Shiplogic
+            // Before asking the Engine to CREATE a shipment, ask the Engine
             // whether one already exists for this customer reference. This
-            // closes the narrow crash window between a successful Shiplogic
+            // closes the narrow crash window between a successful the Engine
             // create on a prior attempt and the local DB save that follows
             // it. Without this guard, a crash in that window would cause
             // the next Hangfire retry to create a SECOND consignment in
-            // Shiplogic for the same WooCommerce order.
+            // the Engine for the same WooCommerce order.
             //
-            // The lookup is best-effort: if Shiplogic doesn't support the
+            // The lookup is best-effort: if the Engine doesn't support the
             // query or the call fails for any reason, FindShipmentByCustomerReferenceAsync
             // returns null and we fall through to create (i.e. the worst
             // case is exactly the pre-guard behaviour).
@@ -398,7 +399,7 @@ public class ShipmentOrchestrationService
             });
 
             // If a sibling job had already created the shipment, short-circuit
-            // — no Shiplogic create happened on this attempt, so there's nothing
+            // — no Engine create happened on this attempt, so there's nothing
             // to label. Use the explicit flag rather than inferring from
             // (booking == null) — a previous failed retry attempt
             // could have populated booking before throwing, and the
@@ -433,7 +434,7 @@ public class ShipmentOrchestrationService
                 }
                 else
                 {
-                    _logger.LogWarning("Label not available yet for Shiplogic shipment ID: {ShiplogicShipmentId}. " +
+                    _logger.LogWarning("Label not available yet for the Engine shipment ID: {ShipmentId}. " +
                         "Label can be fetched manually later.", booking.ConsignmentId);
                 }
             }
@@ -474,7 +475,7 @@ public class ShipmentOrchestrationService
             // number so the merchant sees it on the order page immediately. Any
             // failure here is logged but does NOT fail the shipment job — the
             // shipment is already booked and the tracking webhook handler will
-            // retry the push when Shiplogic reports the first status change.
+            // retry the push when the Engine reports the first status change.
             await TryPushTrackingToStorefrontAsync(order, createdShipment!);
             // ==================== END PUSH TRACKING ====================
 
@@ -483,7 +484,7 @@ public class ShipmentOrchestrationService
         catch (Exception ex)
         {
             // Log and RE-THROW so Hangfire retries the job. Anything that
-            // gets here is transient or unexpected — Shiplogic 5xx, network
+            // gets here is transient or unexpected — the Engine 5xx, network
             // blip, DB transient — exactly the class of failure that should
             // be retried with backoff instead of silently dropped.
             _logger.LogError(ex, "Transient failure creating shipment for OrderID: {OrderId} — Hangfire will retry.", orderId);
@@ -600,13 +601,13 @@ public class ShipmentOrchestrationService
                 return;
             }
 
-            var courier = !string.IsNullOrWhiteSpace(shipment.CourierName) ? shipment.CourierName : "Shiplogic";
+            var courier = !string.IsNullOrWhiteSpace(shipment.CourierName) ? shipment.CourierName : "the Engine";
             var ok = await _wooCommerceService.AddTrackingInfoAsync(
                 store.StoreID, wooOrderId, shipment.TrackingNumber, courier);
 
             if (ok)
             {
-                // Stamp the marker so the Shiplogic-webhook pushback path
+                // Stamp the marker so the the Engine-webhook pushback path
                 // (and any future re-run of this booking job) won't post the
                 // same note again. The Shipment was added to _context above,
                 // so this is part of the current change-tracker session.
@@ -675,9 +676,9 @@ public class ShipmentOrchestrationService
     ///     legacy behaviour.
     /// </summary>
     /// <summary>
-    /// Special-trip orders cannot be auto-booked (Shiplogic denies SPX
+    /// Special-trip orders cannot be auto-booked (the Engine denies SPX
     /// creation on this account). Notify the admin so the trip is booked
-    /// manually in the Shiplogic dashboard, write a marker note + meta back
+    /// manually in the the Engine dashboard, write a marker note + meta back
     /// to the Woo order, and emit a system event. Idempotent: the system
     /// event doubles as the "already notified" marker, so webhook retries
     /// and re-enqueues do not send duplicate emails or notes.
@@ -685,7 +686,7 @@ public class ShipmentOrchestrationService
     private async Task<ShipmentCreationResult> HandleSpecialTripManualBookingAsync(Order order)
     {
         const string eventType = "shipment.special_trip_manual_booking";
-        var resultMsg = $"Order {order.OrderID} (Woo #{order.WooOrderNumber}) is a special trip — Shiplogic cannot auto-book it; admin notified for manual booking.";
+        var resultMsg = $"Order {order.OrderID} (Woo #{order.WooOrderNumber}) is a special trip — the Engine cannot auto-book it; admin notified for manual booking.";
 
         // Stable idempotency key: WooOrderNumber can in principle be blank, and
         // a blank "#" ref would make every later special trip look "handled".
@@ -772,7 +773,7 @@ public class ShipmentOrchestrationService
         var subject = $"Special trip to book manually — {order.Store?.StoreName ?? $"Store {order.StoreID}"} order #{order.WooOrderNumber} (R{amount})";
         var html =
             $"<h2>Special trip requires manual booking</h2>" +
-            $"<p>Shiplogic cannot auto-book this out-of-coverage delivery. Please create the trip manually in the Shiplogic dashboard.</p>" +
+            $"<p>the Engine cannot auto-book this out-of-coverage delivery. Please create the trip manually in the the Engine dashboard.</p>" +
             $"<table cellpadding=\"4\" style=\"border-collapse:collapse\">" +
             $"<tr><td><b>Store</b></td><td>{WebUtility.HtmlEncode(order.Store?.StoreName ?? order.StoreID.ToString())}</td></tr>" +
             $"<tr><td><b>Order #</b></td><td>{WebUtility.HtmlEncode(order.WooOrderNumber ?? "?")}</td></tr>" +
@@ -889,10 +890,10 @@ public class ShipmentOrchestrationService
 
         var skip =
             $"Order {order.OrderID} (WooOrderID {order.WooOrderID}) chose collection shipping method " +
-            $"\"{methodTitle ?? methodId}\" — refusing to book a Shiplogic shipment.";
+            $"\"{methodTitle ?? methodId}\" — refusing to book a the Engine shipment.";
         _logger.LogWarning(
             "Layer-3 collection-method guard hit for OrderID {OrderId} (WooOrderID {WooOrderId}). " +
-            "Method id(s): '{MethodIds}', title(s): '{MethodTitles}'. No Shiplogic call made.",
+            "Method id(s): '{MethodIds}', title(s): '{MethodTitles}'. No booking made.",
             order.OrderID, order.WooOrderID, methodId ?? "(none)", methodTitle ?? "(none)");
 
         await _systemEvents.LogAsync(new SystemEventEntry
@@ -903,7 +904,7 @@ public class ShipmentOrchestrationService
             TenantId = order.TenantID,
             EntityType = "Order",
             EntityRef = $"#{order.WooOrderNumber}",
-            Message = $"Skipped Shiplogic booking for Order #{order.WooOrderNumber}: customer chose collection shipping method \"{methodTitle ?? methodId}\".",
+            Message = $"Skipped booking for Order #{order.WooOrderNumber}: customer chose collection shipping method \"{methodTitle ?? methodId}\".",
             Details = new
             {
                 orderId = order.OrderID,

@@ -205,7 +205,7 @@ public class ShopifyTrackingWriteback
     {
         return string.Format(
             CultureInfo.InvariantCulture,
-            ShipmentStorefrontMeta.ShiplogicTrackingUrlFormat,
+            ShipmentStorefrontMeta.TrackingUrlFormat,
             Uri.EscapeDataString(trackingNumber));
     }
 

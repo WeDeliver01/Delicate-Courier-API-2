@@ -150,8 +150,8 @@ namespace DelicateCouriers.ApiService.Features.Stores
                 CollectionCompanyName = request.CollectionCompanyName,
 
                 // Shiplogic Configuration
-                ShiplogicProviderId = request.ShiplogicProviderId,
-                ShiplogicAccountId = request.ShiplogicAccountId,
+                EngineAccountRef = request.EngineAccountRef ?? string.Empty,
+                EnginePackageTypeId = request.EnginePackageTypeId ?? string.Empty,
                 DefaultServiceLevel = request.DefaultServiceLevel,
 
                 // Special Trip fallback
@@ -273,10 +273,12 @@ namespace DelicateCouriers.ApiService.Features.Stores
                 store.CollectionCompanyName = request.CollectionCompanyName;
 
             // Update Shiplogic Configuration
-            if (request.ShiplogicProviderId.HasValue)
-                store.ShiplogicProviderId = request.ShiplogicProviderId.Value;
-            if (request.ShiplogicAccountId.HasValue)
-                store.ShiplogicAccountId = request.ShiplogicAccountId.Value;
+            // Left null means "keep what is stored", which is how every other optional
+            // field on this request behaves.
+            if (request.EngineAccountRef is not null)
+                store.EngineAccountRef = request.EngineAccountRef;
+            if (request.EnginePackageTypeId is not null)
+                store.EnginePackageTypeId = request.EnginePackageTypeId;
             if (request.DefaultServiceLevel != null)
                 store.DefaultServiceLevel = request.DefaultServiceLevel;
 
@@ -399,8 +401,8 @@ namespace DelicateCouriers.ApiService.Features.Stores
                 CollectionCompanyName = s.CollectionCompanyName,
 
                 // Shiplogic Configuration
-                ShiplogicProviderId = s.ShiplogicProviderId,
-                ShiplogicAccountId = s.ShiplogicAccountId,
+                EngineAccountRef = s.EngineAccountRef,
+                EnginePackageTypeId = s.EnginePackageTypeId,
                 DefaultServiceLevel = s.DefaultServiceLevel,
 
                 // Special Trip fallback

@@ -10,7 +10,6 @@ public class TenantDetailDto
     public string ContactEmail { get; set; } = string.Empty;
     public string ContactPhone { get; set; } = string.Empty;
     public string TenantAPIKey { get; set; } = string.Empty;
-    public string? ShiplogicBearerToken { get; set; }
     public bool IsActive { get; set; }
     public DateTime CreatedOn { get; set; }
     public string CreatedBy { get; set; } = string.Empty;
@@ -19,5 +18,4 @@ public class TenantDetailDto
 
     // Computed fields
     public int StoreCount { get; set; }
-    public bool HasShiplogicToken { get; set; }
 }

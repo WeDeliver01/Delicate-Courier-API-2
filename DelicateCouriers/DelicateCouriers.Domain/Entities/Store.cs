@@ -179,7 +179,6 @@ public class Store
 
     // Shipping Configuration
     /// <summary>
-    /// Default Shiplogic service level code for this store
     /// Examples: "ECO" (Economy), "ONX" (Overnight Express), "EXSM" (Express Same Day)
     /// Can be overridden per order if needed
     /// </summary>
@@ -189,17 +188,13 @@ public class Store
 
     public double? CollectionLongitude { get; set; }
 
-    public int ShiplogicProviderId { get; set; } //= 35;
 
-    public int ShiplogicAccountId { get; set; } //= 624164;
 
-    //Service level - Required field for Shiplogic shipment creation
     public string DefaultServiceLevel { get; set; } = "STD";
 
     /// <summary>
     /// This store's own identifier, which the Engine resolves to an account.
     ///
-    /// Replaces the pair above. ShiplogicAccountId and ShiplogicProviderId named a reseller's
     /// account and the carrier within it; the Engine needs neither, because the account is
     /// ours and there is no carrier to choose. Kept as the store's own reference rather than
     /// an Engine uuid, so this portal never has to store the Engine's ids.
@@ -215,7 +210,6 @@ public class Store
     /// </summary>
     public string EnginePackageTypeId { get; set; } = string.Empty;
 
-    // Collection address suburb (local_area for Shiplogic)
     public string? CollectionSuburb { get; set; }
 
     // Collection time window
@@ -227,7 +221,6 @@ public class Store
     public string? DeliveryTimeTo { get; set; }      // e.g., "17:00"
 
     // ── Special-trip fallback rate (Shopify carrier callback) ──
-    // When Shiplogic returns no rate for a delivery address, offer a
     // "Special Trip" rate priced by one-way driving distance:
     //   price = max(SpecialTripMinFee, distanceKm × SpecialTripCostPerKm)
     // Enabled only when SpecialTripCostPerKm is set (> 0). Distance beyond
@@ -246,7 +239,6 @@ public class Store
     /// <summary>
     /// Optional merchant-facing checkout rate label (e.g. "Standard baked
     /// goods delivery"). When set, WooCommerce checkout rates use this name
-    /// instead of the Shiplogic service-level name, and the special-trip
     /// fallback is labeled "{CheckoutRateLabel} (X km)" instead of
     /// "Special Trip Request (X km)". Order intake detects special trips by
     /// this label + the km suffix, so both must stay in sync.

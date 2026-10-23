@@ -250,7 +250,7 @@ public class ShipmentsController : ControllerBase
         {
             var trackingUrl = string.Format(
                 System.Globalization.CultureInfo.InvariantCulture,
-                ShipmentStorefrontMeta.ShiplogicTrackingUrlFormat,
+                ShipmentStorefrontMeta.TrackingUrlFormat,
                 Uri.EscapeDataString(shipment.TrackingNumber));
             note = $"Delicate Courier: shipment booked. Tracking number {shipment.TrackingNumber} ({trackingUrl}). Status: {ShipmentStorefrontMeta.StatusLabel(shipment.ShipmentStatus)}.";
         }

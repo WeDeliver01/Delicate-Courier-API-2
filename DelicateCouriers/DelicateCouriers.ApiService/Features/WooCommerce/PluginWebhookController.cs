@@ -290,7 +290,7 @@ namespace DelicateCouriers.ApiService.Features.WooCommerce
                         catch (Exception fetchEx)
                         {
                             _logger.LogWarning(fetchEx,
-                                "On-demand Shiplogic label fetch failed for Shipment {ShipmentId} (Consignment {ConsignmentId})",
+                                "On-demand waybill fetch failed for Shipment {ShipmentId} (Consignment {ConsignmentId})",
                                 shipment.ShipmentID, shipment.ConsignmentID);
                         }
                     }

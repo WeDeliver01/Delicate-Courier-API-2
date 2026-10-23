@@ -15,15 +15,16 @@ namespace DelicateCouriers.ApiService.Features.Shipments;
 public static class ShipmentStorefrontMeta
 {
     /// <summary>
-    /// Shiplogic's public tracking page. The pattern matches the link
-    /// Shiplogic itself sends customers in their tracking emails.
+    /// Our own public tracking page.
+    ///
+    /// Was Shiplogic's. A customer following a link to a carrier we no longer use would
+    /// have been told their parcel does not exist, which is a worse answer than none.
     /// </summary>
-    public const string ShiplogicTrackingUrlFormat =
-        "https://tracking.shiplogic.com/?tracking_reference={0}";
+    public const string TrackingUrlFormat =
+        "https://delicatecourier.co.za/track?waybill={0}";
 
     /// <summary>
-    /// Returns the customer-friendly label for a Shiplogic shipment status.
-    /// Mirrors <c>ShiplogicTrackingWebhookController.GetDefaultMessage</c>
+    /// Returns the customer-friendly label for a shipment status.
     /// so the metabox and the per-event tracking history stay in sync.
     /// </summary>
     public static string StatusLabel(string? status) => status?.ToLowerInvariant() switch
@@ -53,11 +54,11 @@ public static class ShipmentStorefrontMeta
     {
         var tracking = shipment.TrackingNumber ?? string.Empty;
         var trackingUrl = !string.IsNullOrWhiteSpace(tracking)
-            ? string.Format(CultureInfo.InvariantCulture, ShiplogicTrackingUrlFormat, Uri.EscapeDataString(tracking))
+            ? string.Format(CultureInfo.InvariantCulture, TrackingUrlFormat, Uri.EscapeDataString(tracking))
             : string.Empty;
 
         var courier = string.IsNullOrWhiteSpace(shipment.CourierName)
-            ? "Shiplogic"
+            ? "Delicate Courier"
             : shipment.CourierName;
 
         return new Dictionary<string, string?>(StringComparer.Ordinal)

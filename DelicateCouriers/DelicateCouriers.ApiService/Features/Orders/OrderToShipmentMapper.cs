@@ -7,7 +7,7 @@ using DelicateCouriers.ApiService.Infrastructure.Geocoding;
 namespace DelicateCouriers.ApiService.Features.Orders;
 
 /// <summary>
-/// Maps WooCommerce orders to Shiplogic shipment requests
+/// Maps WooCommerce orders to delivery requests
 /// </summary>
 public class OrderToShipmentMapper
 {
@@ -15,11 +15,11 @@ public class OrderToShipmentMapper
     private readonly IGeocoder _geocoder;
     private readonly ILogger<OrderToShipmentMapper> _logger;
 
-    // Valid Shiplogic service level codes
+    // Service level codes this portal offers
     private static readonly HashSet<string> ValidServiceLevels = new(StringComparer.OrdinalIgnoreCase)
     {
         "STD", "LSF", "LOF", "ECO", "LSE", "LSX", "NFS", "NOF", "NFE", "RFS", "ROF", "RFE",
-        // SPX — Shiplogic "Special Express" ad-hoc trip; used for
+        // SPX — an ad-hoc special trip, priced by distance; used for
         // special_trip orders quoted by the WooCommerce plugin (v2.7.0+).
         "SPX"
     };
@@ -32,7 +32,7 @@ public class OrderToShipmentMapper
     }
 
     /// <summary>
-    /// Convert a WooCommerce order into a Shiplogic shipment request
+    /// Convert a WooCommerce order into a delivery request
     /// </summary>
     public async Task<CreateShipmentRequest> MapOrderToShipmentAsync(Order order, Store store)
     {
@@ -52,7 +52,7 @@ public class OrderToShipmentMapper
         if (store == null)
         {
             throw new InvalidOperationException(
-                $"Cannot map Order {order?.OrderID} to a Shiplogic shipment — the Store reference is null. " +
+                $"Cannot map Order {order?.OrderID} to a delivery — the Store reference is null. " +
                 "This usually means the order's Store was filtered out by the tenant query filter.");
         }
 
@@ -71,7 +71,7 @@ public class OrderToShipmentMapper
         {
             throw new InvalidOperationException(
                 $"Order {order.OrderID} (#{order.WooOrderNumber}) has no delivery postal code — " +
-                "cannot book a Shiplogic shipment. Check whether this is really a delivery order " +
+                "cannot book a delivery. Check whether this is really a delivery order " +
                 "(pickup/collection orders must not book shipments) or ask the customer for a complete address.");
         }
 
@@ -197,8 +197,6 @@ public class OrderToShipmentMapper
 
         return new CreateShipmentRequest
         {
-            AccountId = store.ShiplogicAccountId,
-            ProviderId = store.ShiplogicProviderId,
             CollectionAddress = MapCollectionAddress(store),
             CollectionContact = MapCollectionContact(store),
             DeliveryAddress = deliveryAddress,
@@ -508,10 +506,10 @@ public class OrderToShipmentMapper
             missingFields.Add("CollectionContactName");
         if (string.IsNullOrWhiteSpace(store.CollectionContactPhone))
             missingFields.Add("CollectionContactPhone");
-        if (store.ShiplogicAccountId == 0)
-            missingFields.Add("ShiplogicAccountId");
-        if (store.ShiplogicProviderId == 0)
-            missingFields.Add("ShiplogicProviderId");
+        if (string.IsNullOrWhiteSpace(store.EngineAccountRef))
+            missingFields.Add("EngineAccountRef");
+        if (string.IsNullOrWhiteSpace(store.EnginePackageTypeId))
+            missingFields.Add("EnginePackageTypeId");
         if (!store.CollectionLatitude.HasValue || !store.CollectionLongitude.HasValue)
             missingFields.Add("CollectionLatitude/CollectionLongitude");
 

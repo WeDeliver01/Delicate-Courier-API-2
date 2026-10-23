@@ -106,9 +106,10 @@ builder.Services.AddScoped<WebhookService>();
 // breaker the courier client had, because it is still a network hop that can have a bad moment.
 
 // ====== GEOCODING ======
-// Shiplogic /v2/rates returns rates:null when its server-side geocoder can't
-// resolve our address. We side-step that by geocoding ourselves (with a DB
-// cache) and passing explicit lat/lng on every address. Default to Google
+// Addresses are geocoded here, with a DB cache, and explicit lat/lng travels with every
+// one. This began because ShipLogic's own geocoder returned rates:null for addresses it
+// could not resolve; it stayed because the Engine prices from coordinates too, and a pin
+// we resolved once and cached is cheaper and steadier than one resolved per request. Default to Google
 // when GOOGLE_MAPS_API_KEY is configured and working; otherwise fall back to
 // the free Nominatim service. Both implementations are wrapped in the same
 // read-through cache (GeocodeCache table).
@@ -336,23 +337,15 @@ builder.Services
         // future regressions show up loudly instead of as silent 401s.
         options.Events = new JwtBearerEvents
         {
-            // Third-party webhooks (Shiplogic, WooCommerce plugin) authenticate
-            // via their own shared-secret headers — Shiplogic sends its "Auth
-            // key" verbatim in the Authorization header, which makes JwtBearer
-            // try to parse a non-JWT string and throw IDX14100. Suppress the
+            // The WooCommerce plugin authenticates with its own signature header rather
+            // than a bearer token, and anything non-JWT in the Authorization header makes
+            // JwtBearer try to parse it and throw IDX14100. Suppress the
             // handler entirely for those paths so the bearer middleware never
             // touches the request and we don't pollute the logs with bogus
             // "Failed to validate the token" warnings. The controllers have
             // their own [AllowAnonymous] + shared-secret enforcement.
             OnMessageReceived = ctx =>
             {
-                var path = ctx.Request.Path.Value ?? string.Empty;
-                if (path.StartsWith("/api/webhooks/shiplogic/", StringComparison.OrdinalIgnoreCase)
-                    || path.StartsWith("/api/webhooks/plugin/", StringComparison.OrdinalIgnoreCase)
-                    || path.StartsWith("/api/webhooks/woocommerce/", StringComparison.OrdinalIgnoreCase))
-                {
-                    ctx.NoResult();
-                }
                 return Task.CompletedTask;
             },
             OnAuthenticationFailed = ctx =>

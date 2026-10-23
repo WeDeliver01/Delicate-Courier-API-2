@@ -1,4 +1,4 @@
-﻿namespace DelicateCouriers.ApiService.Features.Shiplogic.DTOs
+﻿namespace DelicateCouriers.ApiService.Features.Shipments.DTOs
 {
     /// <summary>
     /// Result for shipment list query

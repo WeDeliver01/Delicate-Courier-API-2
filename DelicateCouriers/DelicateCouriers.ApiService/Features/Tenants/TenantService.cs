@@ -35,7 +35,6 @@ public class TenantService
                                                 ContactPhone = t.ContactPhone,
                                                 IsActive = t.IsActive,
                                                 CreatedOn = t.CreatedOn,
-                                                HasShiplogicToken = !string.IsNullOrEmpty(t.ShiplogicBearerToken)
                                             })
                                             .ToListAsync();
 
@@ -67,14 +66,12 @@ public class TenantService
             ContactEmail = tenant.ContactEmail,
             ContactPhone = tenant.ContactPhone,
             TenantAPIKey = tenant.TenantAPIKey,
-            ShiplogicBearerToken = tenant.ShiplogicBearerToken,
             IsActive = tenant.IsActive,
             CreatedOn = tenant.CreatedOn,
             CreatedBy = tenant.CreatedBy,
             ChangedOn = tenant.ChangedOn,
             ChangedBy = tenant.ChangedBy,
             StoreCount = tenant.Stores.Count,
-            HasShiplogicToken = !string.IsNullOrEmpty(tenant.ShiplogicBearerToken)
         };
 
         _logger.LogInformation("Retrieved tenant {TenantId} with {StoreCount} stores", tenantId, result.StoreCount);
@@ -98,7 +95,6 @@ public class TenantService
             ContactEmail = request.ContactEmail,
             ContactPhone = request.ContactPhone,
             TenantAPIKey = apiKey,
-            ShiplogicBearerToken = request.ShiplogicBearerToken,
             IsActive = true,
             CreatedOn = DateTime.UtcNow,
             CreatedBy = createdBy
@@ -116,12 +112,10 @@ public class TenantService
             ContactEmail = tenant.ContactEmail,
             ContactPhone = tenant.ContactPhone,
             TenantAPIKey = tenant.TenantAPIKey,
-            ShiplogicBearerToken = tenant.ShiplogicBearerToken,
             IsActive = tenant.IsActive,
             CreatedOn = tenant.CreatedOn,
             CreatedBy = tenant.CreatedBy,
             StoreCount = 0,
-            HasShiplogicToken = !string.IsNullOrEmpty(tenant.ShiplogicBearerToken)
         };
     }
 
@@ -150,8 +144,6 @@ public class TenantService
         if (!string.IsNullOrEmpty(request.ContactPhone))
             tenant.ContactPhone = request.ContactPhone;
 
-        if (request.ShiplogicBearerToken != null)
-            tenant.ShiplogicBearerToken = request.ShiplogicBearerToken;
 
         if (request.IsActive.HasValue)
             tenant.IsActive = request.IsActive.Value;
@@ -170,14 +162,12 @@ public class TenantService
             ContactEmail = tenant.ContactEmail,
             ContactPhone = tenant.ContactPhone,
             TenantAPIKey = tenant.TenantAPIKey,
-            ShiplogicBearerToken = tenant.ShiplogicBearerToken,
             IsActive = tenant.IsActive,
             CreatedOn = tenant.CreatedOn,
             CreatedBy = tenant.CreatedBy,
             ChangedOn = tenant.ChangedOn,
             ChangedBy = tenant.ChangedBy,
             StoreCount = tenant.Stores.Count,
-            HasShiplogicToken = !string.IsNullOrEmpty(tenant.ShiplogicBearerToken)
         };
     }
 
