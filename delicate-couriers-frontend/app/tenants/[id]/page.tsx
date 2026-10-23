@@ -16,11 +16,9 @@ interface TenantDetail {
   contactEmail: string
   contactPhone: string
   tenantAPIKey: string
-  shiplogicBearerToken: string | null
   isActive: boolean
   createdOn: string
   storeCount: number
-  hasShiplogicToken: boolean
 }
 
 export default function TenantEditPage() {
@@ -34,7 +32,6 @@ export default function TenantEditPage() {
   const [tenantName, setTenantName] = useState('')
   const [contactEmail, setContactEmail] = useState('')
   const [contactPhone, setContactPhone] = useState('')
-  const [shiplogicBearerToken, setShiplogicBearerToken] = useState('')
   const [isActive, setIsActive] = useState(true)
 
   // Show/hide toggle
@@ -58,7 +55,6 @@ export default function TenantEditPage() {
       setTenantName(data.tenantName)
       setContactEmail(data.contactEmail)
       setContactPhone(data.contactPhone)
-      setShiplogicBearerToken(data.shiplogicBearerToken || '')
       setIsActive(data.isActive)
     } catch (error: any) {
       if (error.response?.status === 404) {
@@ -83,11 +79,6 @@ export default function TenantEditPage() {
         contactEmail,
         contactPhone,
         isActive,
-      }
-
-      // Only include token if it was entered
-      if (shiplogicBearerToken) {
-        updateData.shiplogicBearerToken = shiplogicBearerToken
       }
 
       await api.put(`/tenants/${tenantId}`, updateData)
@@ -230,49 +221,6 @@ export default function TenantEditPage() {
               </CardContent>
             </Card>
 
-            {/* Shiplogic API Configuration */}
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle>Shiplogic API Configuration</CardTitle>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Leave blank to keep existing token
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="shiplogicBearerToken">Shiplogic Bearer Token</Label>
-                  <div className="relative">
-                    <Input
-                      id="shiplogicBearerToken"
-                      type={showToken ? 'text' : 'password'}
-                      value={shiplogicBearerToken}
-                      onChange={(e) => setShiplogicBearerToken(e.target.value)}
-                      placeholder={tenant?.hasShiplogicToken ? '••••••••' : 'Enter bearer token'}
-                      disabled={saving}
-                      className="pr-10"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowToken(!showToken)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-                    >
-                      {showToken ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                    </button>
-                  </div>
-                  {tenant?.hasShiplogicToken && (
-                    <p className="mt-1 text-xs text-green-600 dark:text-green-400">✓ Currently configured</p>
-                  )}
-                </div>
-
-                <div className="rounded-md bg-blue-50 dark:bg-blue-900/20 p-4 text-sm text-blue-800 dark:text-blue-200">
-                  <p className="font-medium">ℹ️ About Shiplogic Token</p>
-                  <p className="mt-1">
-                    This token is used to create shipments via the Shiplogic API.
-                    Each tenant should have their own Shiplogic sub-account token.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
 
             {/* API Key (Read-Only) */}
             <Card className="mb-6">

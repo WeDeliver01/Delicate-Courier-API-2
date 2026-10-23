@@ -38,7 +38,6 @@ const navigation: NavItem[] = [
   { name: 'Reports', href: '/reports', icon: BarChart3 },
   { name: 'System Events', href: '/system-events', icon: Activity, roles: ['SuperAdmin'] },
   { name: 'Debug Log', href: '/super-admin/debug-log', icon: Bug, roles: ['SuperAdmin'] },
-  { name: 'Shiplogic Webhook', href: '/super-admin/shiplogic-webhook', icon: Truck, roles: ['SuperAdmin'] },
   { name: 'Shopify Rates', href: '/super-admin/shopify-carrier', icon: ShoppingBag, roles: ['SuperAdmin'] },
 ]
 

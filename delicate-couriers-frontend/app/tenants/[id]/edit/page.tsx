@@ -13,14 +13,12 @@ interface TenantDetail {
   contactEmail: string
   contactPhone: string
   tenantAPIKey: string
-  shiplogicBearerToken: string | null
   isActive: boolean
   createdOn: string
   createdBy: string
   changedOn: string | null
   changedBy: string | null
   storeCount: number
-  hasShiplogicToken: boolean
 }
 
 export default function TenantDetailPage() {
@@ -205,33 +203,6 @@ export default function TenantDetailPage() {
                   </p>
                 </div>
 
-                <div className="flex items-center justify-between rounded-lg border dark:border-gray-700 p-3">
-                  <div>
-                    <p className="font-medium">Shiplogic Bearer Token</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      For courier API integration
-                    </p>
-                  </div>
-                  <span
-                    className={`rounded-full px-3 py-1 text-sm font-medium ${
-                      tenant.hasShiplogicToken
-                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                        : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                    }`}
-                  >
-                    {tenant.hasShiplogicToken ? '✓ Configured' : '✗ Missing'}
-                  </span>
-                </div>
-
-                {!tenant.hasShiplogicToken && (
-                  <div className="rounded-md bg-yellow-50 dark:bg-yellow-900/20 p-4 text-sm text-yellow-800 dark:text-yellow-200">
-                    <p className="font-medium">⚠️ Configuration Incomplete</p>
-                    <p className="mt-1">
-                      This tenant needs a Shiplogic bearer token configured before stores can process shipments.
-                      Click "Edit Tenant" to add it.
-                    </p>
-                  </div>
-                )}
               </CardContent>
             </Card>
 
