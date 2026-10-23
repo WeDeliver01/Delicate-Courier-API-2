@@ -189,7 +189,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
               <p className="mb-4 text-sm text-red-700">
-                These shipments failed to create in Shiplogic. Review and retry or create manually.
+                These shipments failed to book. Review and retry, or create one manually.
               </p>
 
               <div className="space-y-2">

@@ -213,7 +213,7 @@ export default function CreateShipmentPage() {
               <li>The order must exist in the system</li>
               <li>The order must not already have a shipment</li>
               <li>The store must have collection address configured</li>
-              <li>The tenant must have Shiplogic token configured</li>
+              <li>The store must have an Engine account reference configured</li>
             </ul>
           </div>
         </div>

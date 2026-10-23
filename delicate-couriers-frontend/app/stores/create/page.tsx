@@ -22,7 +22,7 @@ const buildSteps = (platform: string) => [
   { id: 2, name: platform === 'shopify' ? 'Shopify' : 'WooCommerce' },
   { id: 3, name: 'Collection Address' },
   { id: 4, name: 'Contact Details' },
-  { id: 5, name: 'Shiplogic' },
+  { id: 5, name: 'Delivery' },
   { id: 6, name: 'Review' },
 ]
 
@@ -75,10 +75,9 @@ function StoreWizardForm() {
     collectionContactName: '',
     collectionContactPhone: '',
     collectionContactEmail: '',
-    // Step 5: Shiplogic
-    shiplogicProviderId: '',
-    shiplogicAccountId: '',
-    shiplogicBearerToken: '',
+    // Step 5: delivery through the Engine
+    engineAccountRef: '',
+    enginePackageTypeId: '',
     defaultServiceLevel: 'STD',
     collectionTimeFrom: '08:00',
     collectionTimeTo: '16:00',
@@ -192,12 +191,14 @@ function StoreWizardForm() {
         }
         return true
       case 5:
-        if (!formData.shiplogicProviderId) {
-          setError('Shiplogic Provider ID is required')
+        if (!formData.engineAccountRef) {
+          setError('An Engine account reference is required')
           return false
         }
-        if (!formData.shiplogicAccountId) {
-          setError('Shiplogic Account ID is required')
+        if (!formData.enginePackageTypeId) {
+          // Without it the Engine cannot price a parcel, and the store would look
+          // configured right up until a customer reached checkout.
+          setError('A package type is required')
           return false
         }
         return true
@@ -246,8 +247,8 @@ function StoreWizardForm() {
         collectionContactName: formData.collectionContactName,
         collectionContactPhone: formData.collectionContactPhone,
         collectionContactEmail: formData.collectionContactEmail || null,
-        shiplogicProviderId: parseInt(formData.shiplogicProviderId),
-        shiplogicAccountId: parseInt(formData.shiplogicAccountId),
+        engineAccountRef: formData.engineAccountRef,
+        enginePackageTypeId: formData.enginePackageTypeId,
         defaultServiceLevel: formData.defaultServiceLevel,
         collectionTimeFrom: formData.collectionTimeFrom,
         collectionTimeTo: formData.collectionTimeTo,
@@ -701,33 +702,43 @@ function StoreWizardForm() {
                 </div>
               )}
 
-              {/* Step 5: Shiplogic Configuration */}
+              {/* Step 5: Delivery configuration */}
               {currentStep === 5 && (
                 <div className="space-y-4">
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    Enter the Shiplogic account details. Get these from your Shiplogic dashboard.
+                    How this store's deliveries are priced and booked through the Delicate
+                    Engine.
                   </p>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor="shiplogicProviderId">Provider ID *</Label>
+                      <Label htmlFor="engineAccountRef">Engine account reference *</Label>
                       <Input
-                        id="shiplogicProviderId"
-                        type="number"
-                        value={formData.shiplogicProviderId}
-                        onChange={(e) => updateFormData('shiplogicProviderId', e.target.value)}
-                        placeholder="e.g., 35"
+                        id="engineAccountRef"
+                        value={formData.engineAccountRef}
+                        onChange={(e) => updateFormData('engineAccountRef', e.target.value)}
+                        placeholder="e.g., honeybee-bakery"
                       />
+                      {/* The store's own name for itself. The Engine maps it to an account,
+                          so this portal never has to store Engine ids. */}
+                      <p className="mt-1 text-xs text-gray-500">
+                        This store&apos;s own reference. It must be mapped to an Engine account
+                        before orders can book.
+                      </p>
                     </div>
                     <div>
-                      <Label htmlFor="shiplogicAccountId">Account ID *</Label>
+                      <Label htmlFor="enginePackageTypeId">Package type *</Label>
                       <Input
-                        id="shiplogicAccountId"
-                        type="number"
-                        value={formData.shiplogicAccountId}
-                        onChange={(e) => updateFormData('shiplogicAccountId', e.target.value)}
-                        placeholder="e.g., 449679"
+                        id="enginePackageTypeId"
+                        value={formData.enginePackageTypeId}
+                        onChange={(e) => updateFormData('enginePackageTypeId', e.target.value)}
+                        placeholder="Engine package type id"
                       />
+                      {/* Not derivable from dimensions: the Engine prices by catalogued type,
+                          and a weight says nothing about how a thing is handled. */}
+                      <p className="mt-1 text-xs text-gray-500">
+                        What this store&apos;s parcels are priced as in the Engine catalogue.
+                      </p>
                     </div>
                   </div>
 
@@ -829,10 +840,10 @@ function StoreWizardForm() {
                     </div>
 
                     <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg md:col-span-2">
-                      <h3 className="font-semibold mb-2">Shiplogic Configuration</h3>
+                      <h3 className="font-semibold mb-2">Delivery Configuration</h3>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                        <p className="text-sm"><span className="text-gray-500">Provider ID:</span> {formData.shiplogicProviderId}</p>
-                        <p className="text-sm"><span className="text-gray-500">Account ID:</span> {formData.shiplogicAccountId}</p>
+                        <p className="text-sm"><span className="text-gray-500">Engine account:</span> {formData.engineAccountRef}</p>
+                        <p className="text-sm"><span className="text-gray-500">Package type:</span> {formData.enginePackageTypeId}</p>
                         <p className="text-sm"><span className="text-gray-500">Service Level:</span> {formData.defaultServiceLevel}</p>
                         <p className="text-sm"><span className="text-gray-500">Collection:</span> {formData.collectionTimeFrom} - {formData.collectionTimeTo}</p>
                       </div>

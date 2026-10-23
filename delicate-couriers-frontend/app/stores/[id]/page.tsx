@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { AppLayout } from '@/components/layout/app-layout'
 import { QuickActionsSidebar } from '@/components/ui/quick-actions-sidebar'
-import { Pencil, ExternalLink, Webhook, TestTube, Package, KeyRound } from 'lucide-react'
+import { Pencil, ExternalLink, Webhook, Package, KeyRound } from 'lucide-react'
 
 interface StoreDetail {
   storeID: number
@@ -35,9 +35,9 @@ interface StoreDetail {
   collectionContactPhone?: string
   collectionContactEmail?: string
   collectionCompanyName?: string
-  // Shiplogic Configuration
-  shiplogicProviderId: number
-  shiplogicAccountId: number
+  // Delivery through the Engine
+  engineAccountRef: string
+  enginePackageTypeId: string
   defaultServiceLevel: string
 }
 
@@ -200,12 +200,6 @@ export default function StoreDetailPage() {
       icon: <KeyRound size={20} />,
       label: testingWooApi ? 'Testing...' : 'Test WooCommerce API',
       onClick: handleTestWooApi,
-    },
-    {
-      id: 'shiplogic',
-      icon: <TestTube size={20} />,
-      label: 'Test Shiplogic',
-      onClick: () => router.push(`/stores/${storeId}/test-endpoints`),
     },
     {
       id: 'packages',
@@ -431,17 +425,17 @@ export default function StoreDetailPage() {
 
                 <div className="flex items-center justify-between rounded-lg border p-3 dark:border-gray-700">
                   <div>
-                    <p className="font-medium">Shiplogic Account</p>
+                    <p className="font-medium">Engine Account</p>
                     <p className="text-sm text-gray-600 dark:text-gray-400">Provider & Account IDs</p>
                   </div>
                   <span
                     className={`rounded-full px-3 py-1 text-sm font-medium ${
-                      store.shiplogicProviderId > 0 && store.shiplogicAccountId > 0
+                      !!store.engineAccountRef && !!store.enginePackageTypeId
                         ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
                         : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
                     }`}
                   >
-                    {store.shiplogicProviderId > 0 && store.shiplogicAccountId > 0 ? '✓ Configured' : '✗ Missing'}
+                    {!!store.engineAccountRef && !!store.enginePackageTypeId ? '✓ Configured' : '✗ Missing'}
                   </span>
                 </div>
 
@@ -490,20 +484,20 @@ export default function StoreDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Shiplogic Configuration Card */}
+            {/* Delivery configuration */}
             <Card>
               <CardHeader>
-                <CardTitle>Shiplogic Configuration</CardTitle>
+                <CardTitle>Delivery Configuration</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Provider ID</p>
-                  <p className="font-medium font-mono">{store.shiplogicProviderId || 'Not set'}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Engine account reference</p>
+                  <p className="font-medium font-mono">{store.engineAccountRef || 'Not set'}</p>
                 </div>
 
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Account ID</p>
-                  <p className="font-medium font-mono">{store.shiplogicAccountId || 'Not set'}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Package type</p>
+                  <p className="font-medium font-mono">{store.enginePackageTypeId || 'Not set'}</p>
                 </div>
 
                 <div>

@@ -36,9 +36,9 @@ interface StoreDetail {
   collectionContactPhone?: string
   collectionContactEmail?: string
   collectionCompanyName?: string
-  // Shiplogic Configuration
-  shiplogicProviderId: number
-  shiplogicAccountId: number
+  // Delivery through the Engine
+  engineAccountRef: string
+  enginePackageTypeId: string
   defaultServiceLevel: string
   // Special Trip fallback
   specialTripCostPerKm?: number | null
@@ -78,9 +78,9 @@ export default function StoreEditPage() {
   const [collectionContactEmail, setCollectionContactEmail] = useState('')
   const [collectionCompanyName, setCollectionCompanyName] = useState('')
 
-  // Shiplogic Configuration
-  const [shiplogicProviderId, setShiplogicProviderId] = useState<number>(0)
-  const [shiplogicAccountId, setShiplogicAccountId] = useState<number>(0)
+  // Delivery through the Engine
+  const [engineAccountRef, setEngineAccountRef] = useState<string>('')
+  const [enginePackageTypeId, setEnginePackageTypeId] = useState<string>('')
   const [defaultServiceLevel, setDefaultServiceLevel] = useState('ECO')
 
   // Special Trip fallback
@@ -136,9 +136,9 @@ export default function StoreEditPage() {
       setCollectionContactEmail(data.collectionContactEmail || '')
       setCollectionCompanyName(data.collectionCompanyName || '')
 
-      // Shiplogic Configuration
-      setShiplogicProviderId(data.shiplogicProviderId || 0)
-      setShiplogicAccountId(data.shiplogicAccountId || 0)
+      // Delivery through the Engine
+      setEngineAccountRef(data.engineAccountRef || '')
+      setEnginePackageTypeId(data.enginePackageTypeId || '')
       setDefaultServiceLevel(data.defaultServiceLevel || 'ECO')
 
       // Special Trip fallback
@@ -180,9 +180,9 @@ export default function StoreEditPage() {
         collectionContactPhone,
         collectionContactEmail,
         collectionCompanyName,
-        // Shiplogic Configuration
-        shiplogicProviderId,
-        shiplogicAccountId,
+        // Delivery through the Engine
+        engineAccountRef,
+        enginePackageTypeId,
         defaultServiceLevel
       }
 
@@ -570,36 +570,34 @@ export default function StoreEditPage() {
               </CardContent>
             </Card>
 
-            {/* Shiplogic Configuration */}
+            {/* Delivery through the Engine */}
             <Card className="mb-6">
               <CardHeader>
-                <CardTitle>Shiplogic Configuration</CardTitle>
+                <CardTitle>Delivery Configuration</CardTitle>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Provider and account settings for Shiplogic API
+                  How this store&apos;s deliveries are priced and booked
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div>
-                    <Label htmlFor="shiplogicProviderId">Provider ID *</Label>
+                    <Label htmlFor="engineAccountRef">Engine account reference *</Label>
                     <Input
-                      id="shiplogicProviderId"
-                      type="number"
-                      value={shiplogicProviderId}
-                      onChange={(e) => setShiplogicProviderId(parseInt(e.target.value) || 0)}
-                      placeholder="e.g., 35"
+                      id="engineAccountRef"
+                      value={engineAccountRef}
+                      onChange={(e) => setEngineAccountRef(e.target.value)}
+                      placeholder="e.g., honeybee-bakery"
                       disabled={saving}
                     />
                   </div>
 
                   <div>
-                    <Label htmlFor="shiplogicAccountId">Account ID *</Label>
+                    <Label htmlFor="enginePackageTypeId">Package type *</Label>
                     <Input
-                      id="shiplogicAccountId"
-                      type="number"
-                      value={shiplogicAccountId}
-                      onChange={(e) => setShiplogicAccountId(parseInt(e.target.value) || 0)}
-                      placeholder="e.g., 624164"
+                      id="enginePackageTypeId"
+                      value={enginePackageTypeId}
+                      onChange={(e) => setEnginePackageTypeId(e.target.value)}
+                      placeholder="Engine package type id"
                       disabled={saving}
                     />
                   </div>
@@ -622,10 +620,15 @@ export default function StoreEditPage() {
                 </div>
 
                 <div className="rounded-md bg-blue-50 dark:bg-blue-900/20 p-4 text-sm text-blue-800 dark:text-blue-200">
-                  <p className="font-medium">ℹ️ About Shiplogic IDs</p>
+                  <p className="font-medium">About these two</p>
                   <p className="mt-1">
-                    Provider ID and Account ID are specific to your Shiplogic account.
-                    Contact Shaun or check your Shiplogic dashboard for these values.
+                    The account reference is this store&apos;s own name for itself; the Engine
+                    maps it to an account, so nothing here stores Engine ids. The package type
+                    is what its parcels are priced as in the Engine catalogue &mdash; it cannot
+                    be worked out from weight and dimensions, so it has to be stated.
+                  </p>
+                  <p className="mt-1">
+                    Both must exist on the Engine before this store&apos;s orders can book.
                   </p>
                 </div>
               </CardContent>
@@ -636,7 +639,7 @@ export default function StoreEditPage() {
               <CardHeader>
                 <CardTitle>Special Trip Fallback</CardTitle>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  When Shiplogic has no rate for an address, offer a distance-priced
+                  When the Engine has no rate for an address, offer a distance-priced
                   &quot;Special Trip&quot; option at checkout instead of nothing
                 </p>
               </CardHeader>
