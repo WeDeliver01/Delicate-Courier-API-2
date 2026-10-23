@@ -245,20 +245,6 @@ export default function SuperAdminPage() {
                 </CardContent>
               </Card>
 
-              <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => router.push('/super-admin/shiplogic-webhook')}>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Integrations</p>
-                      <p className="text-lg font-semibold text-indigo-600 dark:text-indigo-400">Shiplogic Webhook →</p>
-                    </div>
-                    <Truck className="h-10 w-10 text-indigo-500 opacity-50" />
-                  </div>
-                  <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                    URL + auth key for tracking updates
-                  </div>
-                </CardContent>
-              </Card>
 
               <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => router.push('/super-admin/shopify-carrier')}>
                 <CardContent className="pt-6">

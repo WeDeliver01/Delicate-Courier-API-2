@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { AppLayout } from '@/components/layout/app-layout'
-import { Eye, EyeOff } from 'lucide-react'
+import {} from 'lucide-react'
 
 export default function CreateTenantPage() {
   const [loading, setLoading] = useState(false)
@@ -20,10 +20,8 @@ export default function CreateTenantPage() {
   const [tenantName, setTenantName] = useState('')
   const [contactEmail, setContactEmail] = useState('')
   const [contactPhone, setContactPhone] = useState('')
-  const [shiplogicBearerToken, setShiplogicBearerToken] = useState('')
 
   // Show/hide toggle
-  const [showToken, setShowToken] = useState(false)
 
   const router = useRouter()
 
@@ -43,7 +41,6 @@ export default function CreateTenantPage() {
         tenantName,
         contactEmail,
         contactPhone,
-        shiplogicBearerToken: shiplogicBearerToken || null,
       }
 
       const response = await api.post('/tenants', tenantData)
@@ -147,58 +144,12 @@ export default function CreateTenantPage() {
               </CardContent>
             </Card>
 
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle>Shiplogic API Configuration</CardTitle>
-                <p className="text-sm text-gray-600">
-                  Optional - can be added later
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="shiplogicBearerToken">Shiplogic Bearer Token</Label>
-                  <div className="relative">
-                    <Input
-                      id="shiplogicBearerToken"
-                      type={showToken ? 'text' : 'password'}
-                      value={shiplogicBearerToken}
-                      onChange={(e) => setShiplogicBearerToken(e.target.value)}
-                      placeholder="Enter bearer token (optional)"
-                      disabled={saving}
-                      className="pr-10"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowToken(!showToken)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                    >
-                      {showToken ? (
-                        <EyeOff className="h-5 w-5" />
-                      ) : (
-                        <Eye className="h-5 w-5" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="rounded-md bg-blue-50 p-4 text-sm text-blue-800">
-                  <p className="font-medium">ℹ️ About Shiplogic Token</p>
-                  <p className="mt-1">
-                    This token is used to create shipments via the Shiplogic API. 
-                    Each tenant should have their own Shiplogic sub-account token.
-                    You can add this later if not available now.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-
             <div className="rounded-md bg-gray-50 p-4 text-sm text-gray-700 mb-6">
               <p className="font-medium">📋 What happens next?</p>
               <ul className="mt-2 list-inside list-disc space-y-1">
                 <li>A unique API key will be auto-generated for this tenant</li>
                 <li>The tenant will be set to Active by default</li>
                 <li>You can add stores for this tenant after creation</li>
-                <li>You can update the Shiplogic token anytime</li>
               </ul>
             </div>
 

@@ -16,7 +16,6 @@ interface Tenant {
   contactPhone: string
   isActive: boolean
   createdOn: string
-  hasShiplogicToken: boolean
 }
 
 export default function TenantsPage() {
@@ -125,7 +124,6 @@ export default function TenantsPage() {
                         <th className="pb-3 font-medium text-gray-600">Tenant Name</th>
                         <th className="pb-3 font-medium text-gray-600">Contact Email</th>
                         <th className="pb-3 font-medium text-gray-600">Contact Phone</th>
-                        <th className="pb-3 font-medium text-gray-600">Shiplogic Token</th>
                         <th className="pb-3 font-medium text-gray-600">Status</th>
                         <th className="pb-3 font-medium text-gray-600">Created</th>
                         <th className="pb-3 font-medium text-gray-600">Actions</th>
@@ -141,17 +139,6 @@ export default function TenantsPage() {
                           <td className="py-3 font-medium">{tenant.tenantName}</td>
                           <td className="py-3">{tenant.contactEmail}</td>
                           <td className="py-3">{tenant.contactPhone}</td>
-                          <td className="py-3">
-                            <span
-                              className={`rounded px-2 py-1 text-xs ${
-                                tenant.hasShiplogicToken
-                                  ? 'bg-green-100 text-green-800'
-                                  : 'bg-red-100 text-red-800'
-                              }`}
-                            >
-                              {tenant.hasShiplogicToken ? '✓ Configured' : '✗ Missing'}
-                            </span>
-                          </td>
                           <td className="py-3">
                             <span
                               className={`rounded-full px-2 py-1 text-xs ${
