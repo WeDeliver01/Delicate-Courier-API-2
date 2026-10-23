@@ -117,6 +117,15 @@ def main() -> None:
         help="Tenant to attach to. Omit to list the available ones and stop.",
     )
     parser.add_argument(
+        "--no-password",
+        action="store_true",
+        help=(
+            "Create the account without setting a password; they set their own through "
+            "Forgot password. Use this when whoever runs the script should not be "
+            "choosing somebody else's credential."
+        ),
+    )
+    parser.add_argument(
         "--role",
         default="SuperAdmin",
         help="SuperAdmin unless you have a reason; Admin cannot reach the super-admin screens.",
@@ -141,30 +150,34 @@ def main() -> None:
 
     if args.tenant_id is None:
         print("Tenants available:")
-        print(psql(db, 'SELECT "TenantID" || \'  \' || "Name" FROM "Tenant" ORDER BY "TenantID"') or "  (none)")
+        print(psql(db, 'SELECT "TenantID" || \'  \' || "TenantName" FROM "Tenants" ORDER BY "TenantID"') or "  (none)")
         print("\nRe-run with --tenant-id <id>. The column is a required foreign key,")
         print("and the User row is cascade-deleted with its tenant, so it matters.")
         return
 
-    tenant = psql(db, f'SELECT "Name" FROM "Tenant" WHERE "TenantID" = {args.tenant_id}')
+    tenant = psql(db, f'SELECT "TenantName" FROM "Tenants" WHERE "TenantID" = {args.tenant_id}')
     if not tenant:
         sys.exit(f"No tenant with id {args.tenant_id}.")
 
     print(f"About to create {args.role} {email} on tenant {args.tenant_id} ({tenant}).")
-    password = getpass.getpass("Password for the new account (not echoed): ")
-    if len(password) < 12:
-        sys.exit("Refusing a password under 12 characters for a super admin account.")
-    if password != getpass.getpass("Repeat it: "):
-        sys.exit("They did not match. Nothing was created.")
+
+    body = {"email": email, "email_confirm": True}
+    if args.no_password:
+        # No credential is chosen here at all. The account exists and is confirmed;
+        # the person it belongs to sets the password themselves through the normal
+        # reset flow, so nobody else ever knows it.
+        print("No password set. Use Forgot password on the login page to choose one.")
+    else:
+        password = getpass.getpass("Password for the new account (not echoed): ")
+        if len(password) < 12:
+            sys.exit("Refusing a password under 12 characters for a super admin account.")
+        if password != getpass.getpass("Repeat it: "):
+            sys.exit("They did not match. Nothing was created.")
+        body["password"] = password
 
     # Supabase first, because it is the system of record for authentication and
     # the local row is meaningless without an id to point at.
-    created = supabase(
-        env,
-        "POST",
-        "/auth/v1/admin/users",
-        {"email": email, "password": password, "email_confirm": True},
-    )
+    created = supabase(env, "POST", "/auth/v1/admin/users", body)
     supabase_id = created.get("id")
     if not supabase_id:
         sys.exit(f"Supabase did not return an id: {json.dumps(created)[:200]}")
@@ -173,13 +186,20 @@ def main() -> None:
     # If this fails the Supabase user is removed again, so a retry is clean
     # rather than colliding with a half-made account from the attempt before.
     try:
+        # PasswordHash is a leftover. SupabaseAuthMigration drops it, but that
+        # migration has never been applied to production — and must not be, because
+        # it truncates the User table on the way past. Entity Framework no longer
+        # maps the column, so nothing reads this value; it exists only to satisfy a
+        # NOT NULL constraint that should have gone years ago. The text says so, so
+        # that whoever finds it in the table is not left wondering what it hashes.
         psql(
             db,
             f"""
             INSERT INTO "User" ("SupabaseUserId", "TenantID", "Email", "FirstName", "LastName",
-                                "Role", "IsActive", "CreatedOn", "CreatedBy")
+                                "Role", "IsActive", "CreatedOn", "CreatedBy", "PasswordHash")
             VALUES ('{supabase_id}', {args.tenant_id}, '{email}',
-                    '{args.first_name}', '{args.last_name}', '{args.role}', true, now(), 'seed-script')
+                    '{args.first_name}', '{args.last_name}', '{args.role}', true, now(),
+                    'seed-script', 'unused-supabase-owns-credentials')
             """,
         )
     except SystemExit:
