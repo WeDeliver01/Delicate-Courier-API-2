@@ -1,5 +1,34 @@
 # Delicate Courier Platform — WooCommerce plugin changelog
 
+## 2.11.0 (Default) — 2026-10-23
+
+### Several delivery options, chosen by the shopper
+- The platform now returns a rate per service level the merchant offers, and
+  each becomes its own option at checkout. The plugin already looped over the
+  response; what changed is that there is now more than one to loop over.
+- `DCP_DEFAULT_SERVICE_LEVEL_CODE` defaults to `''`, meaning "offer whatever
+  the platform returned". It was `STD`, which filtered the list down a second
+  time — a second source of truth that could only ever disagree with the
+  merchant's own configuration. A branded build may still pre-bake a code.
+- The chosen option travels back on the order as the WooCommerce method id,
+  `delicate_courier_platform_<code>`, which is how the platform knows which
+  service was actually paid for rather than assuming.
+
+### Checkout widget
+- Our rates now carry a brand mark, their name and the delivery estimate, with
+  one "Powered by Delicate Courier" line beneath the shipping options.
+- It decorates **only our own rates**. A merchant's other shipping methods are
+  theirs and render exactly as their theme renders them, and the footer does
+  not appear at all when none of our rates are on offer — a checkout showing
+  only the merchant's own methods should not be crediting us for them.
+- No price is rendered by the widget: WooCommerce appends its own, and two
+  prices on one row is how a shopper ends up unsure what they are paying.
+- Everything is filterable, because this ships to sites we do not control:
+  `dcp_widget_enabled`, `dcp_widget_logo_url`, `dcp_widget_powered_by_text`,
+  `dcp_widget_brand_colour`, `dcp_widget_show_estimate`, `dcp_widget_eta_text`.
+  A wordmark is used rather than a bundled logo: shipping an image would mean
+  an asset in a single-file plugin, and guessing at a branded build's identity.
+
 ## 2.10.0 (Default) — 2026-10-23
 
 ### Commerce endpoints move to the integration service

@@ -42,17 +42,28 @@ export interface MerchantAddress {
   contactPhone?: string | null
 }
 
+/**
+ * One delivery option a merchant offers at checkout.
+ *
+ * Three codes, not one, because three systems name the same thing differently. The checkout
+ * code is what WooCommerce shows and hands back on the order, so it is how a shopper's choice
+ * is recognised; the engine code is what gets priced and booked.
+ */
+export interface MerchantServiceLevel {
+  checkoutCode: string
+  checkoutLabel: string
+  engineCode: string
+  estimatedDeliveryDays: number
+}
+
 export interface Merchant {
   storeId: number
   name: string
   engineAccountRef: string
   engineAccountId?: string | null
   collection: MerchantAddress
-  checkoutServiceLevelCode: string
-  checkoutRateLabel: string
-  engineServiceLevelCode: string
+  serviceLevels: MerchantServiceLevel[]
   defaultPackageTypeId: string
-  estimatedDeliveryDays: number
   bookingTriggerStatuses: string[]
   wooCommerceUrl?: string | null
   /** Whether credentials are stored. Never what they are. */
@@ -94,11 +105,15 @@ export const emptyMerchant = (): Partial<Merchant> => ({
   name: '',
   engineAccountRef: '',
   engineAccountId: '',
-  checkoutServiceLevelCode: 'STD',
-  checkoutRateLabel: 'Delicate Courier Delivery',
-  engineServiceLevelCode: 'standard',
+  serviceLevels: [
+    {
+      checkoutCode: 'STD',
+      checkoutLabel: 'Delicate Courier Delivery',
+      engineCode: 'standard',
+      estimatedDeliveryDays: 1,
+    },
+  ],
   defaultPackageTypeId: '',
-  estimatedDeliveryDays: 1,
   bookingTriggerStatuses: [],
   wooCommerceUrl: '',
   isActive: true,

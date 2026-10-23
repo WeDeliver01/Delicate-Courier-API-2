@@ -3,7 +3,7 @@
  * Plugin Name: Delicate Courier Platform
  * Plugin URI:  https://delicatecourier.co.za
  * Description: WooCommerce integration for the Delicate Courier Platform. Provides live courier rates at checkout (server-side geocoded via the platform) and signed order push to the platform for automated shipment creation.
- * Version:     2.10.0
+ * Version:     2.11.0
  * Author:      Delicate Courier
  * Author URI:  https://delicatecourier.co.za
  * License:     Proprietary
@@ -59,6 +59,21 @@ if ( ! defined( 'ABSPATH' ) ) {
  *              coordinates, quote status/price/message) above the existing
  *              Shipment & Tracking section. Reads order meta only; degrades
  *              gracefully on non-DTSC stores.
+ *     v2.11.0 — NO change to the request. The rates RESPONSE may now carry
+ *              several entries rather than one, and each becomes its own
+ *              option at checkout for the shopper to choose between. The
+ *              plugin already looped; what changed is that the platform
+ *              returns more than one, and DCP_DEFAULT_SERVICE_LEVEL_CODE now
+ *              defaults to '' so the merchant's configured list governs rather
+ *              than being filtered down again here. A branded build that
+ *              pre-bakes a code still filters to it.
+ *              The chosen option travels back on the order as the WooCommerce
+ *              method id, delicate_courier_platform_<code>, which is how the
+ *              platform knows which service was actually paid for.
+ *              Also adds the checkout widget: our branding on our own rates,
+ *              the delivery estimate, and one "Powered by Delicate Courier"
+ *              line. It decorates nothing but our own rates, and every part is
+ *              filterable — see the CHECKOUT WIDGET block.
  *     v2.10.0 — NO contract change. The commerce endpoints (order push,
  *              rates, label, health) move to the integration service at
  *              https://api.delicatecourier.co.za. The bodies, paths, headers
@@ -117,7 +132,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * CONSTANTS
  * ========================================================================== */
 
-define( 'DCP_VERSION',         '2.10.0' );
+define( 'DCP_VERSION',         '2.11.0' );
 define( 'DCP_PLUGIN_FILE',     __FILE__ );
 define( 'DCP_PLUGIN_DIR',      plugin_dir_path( __FILE__ ) );
 define( 'DCP_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
@@ -150,7 +165,10 @@ define( 'DCP_SHIPLOGIC_RATES_PATH', '/v2/rates' );
 //     overridden via the dcp_service_level_code filter.
 dcp_define_if_unset( 'DCP_DEFAULT_SHIPLOGIC_ACCOUNT_ID',  '' );
 dcp_define_if_unset( 'DCP_DEFAULT_SHIPLOGIC_PROVIDER_ID', '' );
-dcp_define_if_unset( 'DCP_DEFAULT_SERVICE_LEVEL_CODE',    'STD' );
+// Empty means "offer whatever the platform returned", which is now the merchant's
+// own configured list. Filtering again here would be a second source of truth that
+// can only ever disagree with the first. A branded build may still pre-bake a code.
+dcp_define_if_unset( 'DCP_DEFAULT_SERVICE_LEVEL_CODE',    '' );
 
 // Optional pre-baked collection address. Branded variants override these via
 // define() before this file is loaded — see header of each merchant-branded
@@ -1124,8 +1142,15 @@ function dcp_load_shipping_method() {
                         'cost'      => $cost,
                         'meta_data' => array(
                             'service_level_code' => $code,
+                            // Carried on the rate so the checkout widget can show the
+                            // estimate without asking the platform a second time.
+                            'estimated_delivery_days' => isset( $rate['estimated_delivery_days'] )
+                                ? (int) $rate['estimated_delivery_days']
+                                : null,
                         ),
                     ) );
+                    dcp_mark_rate_rendered();
+                    dcp_mark_rate_rendered();
                     $added++;
                     dcp_log( 'rates.added', $name . ' R' . number_format( $cost, 2 ) );
                 }
@@ -4750,5 +4775,184 @@ function dcp_uc_render_license_section() {
             <?php endif; ?>
         </p>
     </form>
+    <?php
+}
+
+/* ============================================================================
+ * CHECKOUT WIDGET
+ * ============================================================================
+ * Branding on the delivery options the shopper chooses between, and one
+ * "Powered by Delicate Courier" line underneath them.
+ *
+ * Decorates only our own rates. A merchant's other shipping methods are theirs,
+ * and are left exactly as their theme renders them.
+ *
+ * Everything here is filterable, because this ships to merchants whose sites we
+ * do not control: a theme that fights the styles, or a branded build that wants
+ * its own mark, needs an escape hatch that is not editing this file.
+ *
+ *   dcp_widget_enabled          bool    turn the whole thing off
+ *   dcp_widget_logo_url         string  a logo to show instead of the dot
+ *   dcp_widget_powered_by_text  string  replace "Powered by Delicate Courier"
+ *   dcp_widget_brand_colour     string  the accent colour
+ *   dcp_widget_show_estimate    bool    show or hide the delivery estimate
+ *   dcp_widget_eta_text         string  reword the estimate
+ * ========================================================================== */
+
+/** Records that one of our rates reached the page, so the footer knows to appear. */
+function dcp_mark_rate_rendered() {
+    $GLOBALS['dcp_rate_rendered'] = true;
+}
+
+function dcp_rate_was_rendered() {
+    return ! empty( $GLOBALS['dcp_rate_rendered'] );
+}
+
+function dcp_widget_enabled() {
+    return (bool) apply_filters( 'dcp_widget_enabled', true );
+}
+
+function dcp_widget_brand_colour() {
+    return (string) apply_filters( 'dcp_widget_brand_colour', '#6b4fbb' );
+}
+
+/** Our rates carry our method id prefix; anything else belongs to the merchant. */
+function dcp_is_our_rate( $method ) {
+    if ( ! is_object( $method ) || ! method_exists( $method, 'get_id' ) ) {
+        return false;
+    }
+    return strpos( (string) $method->get_id(), 'delicate_courier_platform' ) === 0;
+}
+
+/**
+ * Styles, printed once, and only when one of our rates is on the page.
+ *
+ * Inline rather than a stylesheet because this is a single-file plugin, and
+ * every rule is scoped to a dcp- class so it cannot reach into a theme.
+ */
+add_action( 'wp_footer', 'dcp_widget_styles' );
+function dcp_widget_styles() {
+    static $printed = false;
+    if ( $printed || ! dcp_widget_enabled() || ! dcp_rate_was_rendered() ) {
+        return;
+    }
+    $printed = true;
+    $colour  = esc_attr( dcp_widget_brand_colour() );
+    ?>
+<style id="dcp-widget-styles">
+.dcp-rate{display:inline-flex;align-items:center;gap:.4em;flex-wrap:wrap}
+.dcp-rate-name{font-weight:600}
+.dcp-rate-mark{display:inline-block;width:.55em;height:.55em;border-radius:50%;
+  background:<?php echo $colour; ?>;flex:none}
+.dcp-rate-eta{display:block;font-size:.85em;opacity:.75;margin-top:.15em;font-weight:400}
+.dcp-powered{display:flex;align-items:center;gap:.45em;font-size:.8em;opacity:.7;
+  padding:.5em 0;line-height:1.3}
+.dcp-powered img{height:1.2em;width:auto;display:block}
+.dcp-powered-dot{display:inline-block;width:.5em;height:.5em;border-radius:50%;
+  background:<?php echo $colour; ?>;flex:none}
+</style>
+    <?php
+}
+
+/**
+ * The option's own line: a brand mark, its name, and the delivery estimate.
+ *
+ * WooCommerce appends the price to this itself, so the widget deliberately does
+ * not render one. Two prices on one row is how a shopper ends up unsure what
+ * they are paying.
+ */
+add_filter( 'woocommerce_cart_shipping_method_full_label', 'dcp_widget_rate_label', 10, 2 );
+function dcp_widget_rate_label( $label, $method ) {
+    if ( ! dcp_widget_enabled() || ! dcp_is_our_rate( $method ) ) {
+        return $label;
+    }
+
+    $name = method_exists( $method, 'get_label' ) ? $method->get_label() : $label;
+
+    $eta = '';
+    if ( apply_filters( 'dcp_widget_show_estimate', true ) ) {
+        $days = dcp_widget_rate_days( $method );
+        if ( $days !== null ) {
+            $eta = '<span class="dcp-rate-eta">' . esc_html( dcp_widget_eta_text( $days ) ) . '</span>';
+        }
+    }
+
+    // The wrapper closes before the estimate so WooCommerce's price lands beside
+    // the name rather than underneath it.
+    return '<span class="dcp-rate"><span class="dcp-rate-mark" aria-hidden="true"></span>'
+         . '<span class="dcp-rate-name">' . esc_html( $name ) . '</span></span>'
+         . $eta;
+}
+
+/** The estimate the platform gave for this rate, or null when it gave none. */
+function dcp_widget_rate_days( $method ) {
+    if ( ! method_exists( $method, 'get_meta_data' ) ) {
+        return null;
+    }
+    $meta = $method->get_meta_data();
+    if ( ! is_array( $meta ) || ! isset( $meta['estimated_delivery_days'] ) ) {
+        return null;
+    }
+    $days = (int) $meta['estimated_delivery_days'];
+    return $days > 0 ? $days : null;
+}
+
+function dcp_widget_eta_text( $days ) {
+    if ( 1 === $days ) {
+        $text = __( 'Estimated delivery: next business day', 'dcp' );
+    } else {
+        $text = sprintf(
+            /* translators: %d: number of business days */
+            _n(
+                'Estimated delivery: %d business day',
+                'Estimated delivery: %d business days',
+                $days,
+                'dcp'
+            ),
+            $days
+        );
+    }
+    return (string) apply_filters( 'dcp_widget_eta_text', $text, $days );
+}
+
+/**
+ * "Powered by Delicate Courier", once, under the shipping options.
+ *
+ * A wordmark rather than an image: shipping a logo would mean an asset in a
+ * single-file plugin, and guessing at what a branded build should say. A brand
+ * that wants its own supplies a URL through dcp_widget_logo_url.
+ *
+ * Both hooks render inside the totals table, which is why this is a table row.
+ */
+add_action( 'woocommerce_cart_totals_after_shipping', 'dcp_widget_powered_by' );
+add_action( 'woocommerce_review_order_after_shipping', 'dcp_widget_powered_by' );
+function dcp_widget_powered_by() {
+    static $printed = false;
+
+    // Not shown when none of our rates are on offer. A merchant whose checkout is
+    // listing only their own methods should not be crediting us for them.
+    if ( $printed || ! dcp_widget_enabled() || ! dcp_rate_was_rendered() ) {
+        return;
+    }
+    $printed = true;
+
+    $text = (string) apply_filters(
+        'dcp_widget_powered_by_text',
+        __( 'Powered by Delicate Courier', 'dcp' )
+    );
+    $logo = (string) apply_filters( 'dcp_widget_logo_url', '' );
+    ?>
+<tr class="dcp-powered-row">
+  <td colspan="2">
+    <div class="dcp-powered">
+      <?php if ( '' !== $logo ) : ?>
+        <img src="<?php echo esc_url( $logo ); ?>" alt="<?php echo esc_attr( $text ); ?>">
+      <?php else : ?>
+        <span class="dcp-powered-dot" aria-hidden="true"></span>
+      <?php endif; ?>
+      <span><?php echo esc_html( $text ); ?></span>
+    </div>
+  </td>
+</tr>
     <?php
 }

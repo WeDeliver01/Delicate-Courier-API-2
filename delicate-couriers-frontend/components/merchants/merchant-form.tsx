@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { blankAddress, type Merchant, type MerchantAddress } from '@/lib/merchants'
+import { blankAddress, type Merchant, type MerchantAddress, type MerchantServiceLevel } from '@/lib/merchants'
 
 export interface MerchantFormValues extends Partial<Merchant> {
   /** Only sent when being set or replaced; blank means "leave what is stored". */
@@ -45,6 +45,24 @@ export function MerchantForm({
     }))
 
   const address: MerchantAddress = v.collection ?? blankAddress()
+
+  const levels: MerchantServiceLevel[] = v.serviceLevels ?? []
+
+  // Replaced wholesale rather than mutated: the array is the record of what the shopper is
+  // offered and in what order, and editing it in place makes that order accidental.
+  const setLevels = (next: MerchantServiceLevel[]) =>
+    setV((prev) => ({ ...prev, serviceLevels: next }))
+
+  const setLevel = (index: number, patch: Partial<MerchantServiceLevel>) =>
+    setLevels(levels.map((l, i) => (i === index ? { ...l, ...patch } : l)))
+
+  const addLevel = () =>
+    setLevels([
+      ...levels,
+      { checkoutCode: '', checkoutLabel: '', engineCode: 'standard', estimatedDeliveryDays: 1 },
+    ])
+
+  const removeLevel = (index: number) => setLevels(levels.filter((_, i) => i !== index))
 
   return (
     <form
@@ -89,40 +107,87 @@ export function MerchantForm({
 
       <Card>
         <CardHeader>
+          <CardTitle className="text-base">Delivery options</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Each one is a separate choice at the shopper&apos;s checkout, priced on its own.
+            They appear in this order.
+          </p>
+
+          {levels.length === 0 && (
+            <p className="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+              With none of these, this merchant has no delivery option to offer and their
+              checkout will show nothing. Add at least one.
+            </p>
+          )}
+
+          {levels.map((level, i) => (
+            <div key={i} className="grid items-end gap-3 rounded border p-3 sm:grid-cols-12">
+              <div className="sm:col-span-4">
+                <Label htmlFor={`label-${i}`}>What the shopper sees</Label>
+                <Input
+                  id={`label-${i}`}
+                  value={level.checkoutLabel}
+                  onChange={(e) => setLevel(i, { checkoutLabel: e.target.value })}
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <Label htmlFor={`code-${i}`}>Checkout code</Label>
+                <Input
+                  id={`code-${i}`}
+                  value={level.checkoutCode}
+                  onChange={(e) => setLevel(i, { checkoutCode: e.target.value })}
+                />
+              </div>
+              <div className="sm:col-span-3">
+                <Label htmlFor={`engine-${i}`}>Engine service level</Label>
+                <Input
+                  id={`engine-${i}`}
+                  value={level.engineCode}
+                  onChange={(e) => setLevel(i, { engineCode: e.target.value })}
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <Label htmlFor={`days-${i}`}>Days</Label>
+                <Input
+                  id={`days-${i}`}
+                  type="number"
+                  min={0}
+                  value={level.estimatedDeliveryDays}
+                  onChange={(e) =>
+                    setLevel(i, { estimatedDeliveryDays: Number(e.target.value) })
+                  }
+                />
+              </div>
+              <div className="sm:col-span-1">
+                <Button type="button" variant="outline" onClick={() => removeLevel(i)}>
+                  Remove
+                </Button>
+              </div>
+            </div>
+          ))}
+
+          <div className="space-y-2">
+            <Button type="button" variant="outline" onClick={addLevel}>
+              Add delivery option
+            </Button>
+            {/* The checkout code becomes the WooCommerce method id, which is what comes back
+                on the order. Two options sharing one means the shopper's choice cannot be
+                read back and the booking would be a guess. */}
+            <p className="text-xs text-gray-500">
+              Checkout codes must be distinct — they become the WooCommerce method id, and it
+              is how we tell which option the shopper paid for.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="text-base">At checkout</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <Label htmlFor="rateLabel">What the shopper sees</Label>
-            <Input
-              id="rateLabel"
-              value={v.checkoutRateLabel ?? ''}
-              onChange={(e) => set('checkoutRateLabel', e.target.value)}
-            />
-          </div>
-          <div>
-            <Label htmlFor="serviceCode">Service code</Label>
-            <Input
-              id="serviceCode"
-              value={v.checkoutServiceLevelCode ?? 'STD'}
-              onChange={(e) => set('checkoutServiceLevelCode', e.target.value)}
-            />
-            {/* Get this wrong and the plugin filters our rate out: the customer simply sees
-                no delivery option, with nothing to say why. */}
-            <p className="mt-1 text-xs text-gray-500">
-              Must match the plugin&apos;s configured service level, usually STD.
-            </p>
-          </div>
-          <div>
-            <Label htmlFor="days">Estimated days</Label>
-            <Input
-              id="days"
-              type="number"
-              min={0}
-              value={v.estimatedDeliveryDays ?? 1}
-              onChange={(e) => set('estimatedDeliveryDays', Number(e.target.value))}
-            />
-          </div>
           <div>
             <Label htmlFor="triggers">Book only on these statuses</Label>
             <Input
@@ -320,14 +385,6 @@ export function MerchantForm({
             <p className="mt-1 text-xs text-gray-500">
               What their parcels are priced as in the Engine catalogue.
             </p>
-          </div>
-          <div>
-            <Label htmlFor="engineService">Engine service level</Label>
-            <Input
-              id="engineService"
-              value={v.engineServiceLevelCode ?? 'standard'}
-              onChange={(e) => set('engineServiceLevelCode', e.target.value)}
-            />
           </div>
         </CardContent>
       </Card>
