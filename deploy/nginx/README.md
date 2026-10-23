@@ -9,7 +9,7 @@ memory.
 | Host | Config | Serves |
 |---|---|---|
 | `api2` / `app2` / `webhooks2` | `delicate.conf` | **Live production**: .NET API on `:8080`, portal on `:5000` |
-| `app.delicatecourier.co.za` | `app.delicatecourier.co.za.conf` | Portal (Next.js) on `:5000`, API on `:8080` |
+| `app.delicatecourier.co.za` | `app.delicatecourier.co.za.conf` | **The Engine's portal**: web on `:8094`, API on `:8095` |
 | `api.delicatecourier.co.za` | `api.delicatecourier.co.za.conf` | Integration service on `:8096` |
 
 Each host has its own file. `delicate.conf` serves production, so new hosts are
@@ -41,6 +41,17 @@ certbot certonly --webroot -w /var/www/html -d <host>
 
 Never `--standalone` — it wants port 80 and would take nginx down, and
 production with it.
+
+## app and app2 are different systems
+
+`app2` is the .NET platform's portal, live production, with real merchants and
+shipments in it. `app` is the Engine's portal — a different application, a
+different database, a different Supabase project.
+
+They are not two names for one thing, and for a few hours on 2026-10-22 this
+file made them exactly that: `app` pointed at `:5000`, which is `delicate-web`,
+which is what `app2` serves. Anyone who signed in at `app` during that window
+was looking at production. Corrected the same day.
 
 ## Deliberate omissions
 
