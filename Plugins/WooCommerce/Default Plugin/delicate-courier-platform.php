@@ -3,7 +3,7 @@
  * Plugin Name: Delicate Courier Platform
  * Plugin URI:  https://delicatecourier.co.za
  * Description: WooCommerce integration for the Delicate Courier Platform. Provides live courier rates at checkout (server-side geocoded via the platform) and signed order push to the platform for automated shipment creation.
- * Version:     2.11.0
+ * Version:     2.12.0
  * Author:      Delicate Courier
  * Author URI:  https://delicatecourier.co.za
  * License:     Proprietary
@@ -59,6 +59,22 @@ if ( ! defined( 'ABSPATH' ) ) {
  *              coordinates, quote status/price/message) above the existing
  *              Shipment & Tracking section. Reads order meta only; degrades
  *              gracefully on non-DTSC stores.
+ *     v2.12.0 — adds three OPTIONAL fields to the rates request's
+ *              deliveryAddress: latitude, longitude and placeId.
+ *              Backward-compatible both ways: an older plugin sends none and
+ *              the platform geocodes as before; an older platform ignores
+ *              them.
+ *              They are the coordinates Google Places already returned to the
+ *              merchant's own API key at checkout. Previously fetched and
+ *              discarded, which meant the platform paid to resolve an address
+ *              the merchant had already paid to resolve — on every rate
+ *              request, and a checkout makes several as somebody types.
+ *              Sent only while they still belong to the address on screen. A
+ *              shopper who picks a suggestion and then edits the street number
+ *              has coordinates for somewhere else, and pricing from those
+ *              would quote and collect at the wrong house without anything
+ *              looking wrong. The address signature is stored with the pin and
+ *              checked before use; a mismatch falls back to geocoding.
  *     v2.11.0 — NO change to the request. The rates RESPONSE may now carry
  *              several entries rather than one, and each becomes its own
  *              option at checkout for the shopper to choose between. The
@@ -132,7 +148,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * CONSTANTS
  * ========================================================================== */
 
-define( 'DCP_VERSION',         '2.11.0' );
+define( 'DCP_VERSION',         '2.12.0' );
 define( 'DCP_PLUGIN_FILE',     __FILE__ );
 define( 'DCP_PLUGIN_DIR',      plugin_dir_path( __FILE__ ) );
 define( 'DCP_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
@@ -753,10 +769,44 @@ window.dcpInitAddressAutocomplete = function() {
             if (window.jQuery) { window.jQuery(stateEl).trigger('change'); }
         }
 
+        // Keep the coordinates Google just gave us. They were already paid for on the
+        // merchant's key, and sending them spares a second lookup for the same answer
+        // on every rate request this checkout makes.
+        //
+        // Stored against a signature of the address they belong to: edit the street
+        // number afterwards and the pin stops being used, because pricing a delivery
+        // to the previous house is far worse than paying for a geocode.
+        if (place.geometry && place.geometry.location && window.dcpPlace) {
+            var addr1 = (streetNumber + ' ' + route).trim();
+            jQueryPost({
+                action: 'dcp_store_place',
+                nonce: window.dcpPlace.nonce,
+                lat: place.geometry.location.lat(),
+                lng: place.geometry.location.lng(),
+                place_id: place.place_id || '',
+                signature: dcpSignature(addr1, suburb, city, postcode)
+            });
+        }
+
         // Nudge WooCommerce to recalculate shipping with the new address.
         if (window.jQuery && window.jQuery(document.body).length) {
             window.jQuery(document.body).trigger('update_checkout');
         }
+    }
+
+    // Must match dcp_address_signature() in PHP exactly, or a good pin looks stale
+    // and is thrown away on every request.
+    function dcpSignature(a1, a2, city, postcode) {
+        return [a1, a2, city, postcode].map(function (part) {
+            return String(part == null ? '' : part).trim().toLowerCase().replace(/\s+/g, ' ');
+        }).join('|');
+    }
+
+    function jQueryPost(data) {
+        if (!window.jQuery || !window.dcpPlace) { return; }
+        // Fire and forget: a failure here costs a geocode, not a checkout, so it must
+        // never block the shopper or surface an error to them.
+        window.jQuery.post(window.dcpPlace.ajaxUrl, data).fail(function () {});
     }
 
     FIELDS.forEach(function(fieldId) {
@@ -805,6 +855,14 @@ if (window.jQuery) {
     });
 }
 JS;
+    // What the capture posts to, and the nonce it posts with. Without these the
+    // coordinates are simply not stored and the platform geocodes, which is the
+    // intended fallback rather than a failure.
+    wp_localize_script( 'dcp-google-maps', 'dcpPlace', array(
+        'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+        'nonce'   => wp_create_nonce( 'dcp_place' ),
+    ) );
+
     wp_add_inline_script( 'dcp-google-maps', $inline, 'before' );
 }
 
@@ -1864,6 +1922,26 @@ function dcp_platform_fetch_rates_inner( $store_id, $delivery, $parcels ) {
         ),
         'parcels' => $platform_parcels,
     );
+
+    // The pin Google already gave us at checkout, when it still belongs to this
+    // address. Sending it means the platform prices from it instead of paying to
+    // resolve the same address again. Absent, stale or implausible, it is simply
+    // left out and the platform geocodes — which costs a lookup and is correct.
+    $place = dcp_resolved_place_for( array(
+        'address_1' => $delivery['street_address'] ?? '',
+        'address_2' => $delivery['local_area']     ?? '',
+        'city'      => $delivery['city']           ?? '',
+        'postcode'  => $delivery['code']           ?? '',
+    ) );
+
+    if ( $place !== null ) {
+        $payload['deliveryAddress']['latitude']  = (float) $place['lat'];
+        $payload['deliveryAddress']['longitude'] = (float) $place['lng'];
+        if ( ! empty( $place['place_id'] ) ) {
+            $payload['deliveryAddress']['placeId'] = (string) $place['place_id'];
+        }
+        dcp_log( 'rates.place_reused', 'Pricing from the checkout-resolved pin; no geocode needed' );
+    }
 
     $url      = rtrim( dcp_platform_base_url(), '/' ) . DCP_PLATFORM_RATES_PATH;
     $headers  = array(
@@ -4955,4 +5033,117 @@ function dcp_widget_powered_by() {
   </td>
 </tr>
     <?php
+}
+
+/* ============================================================================
+ * RESOLVED PLACE CAPTURE
+ * ============================================================================
+ * Keeps the coordinates Google already returned, instead of throwing them away
+ * and having the platform geocode the same address again.
+ *
+ * The merchant pays for Places autocomplete on their own key. That response
+ * carries geometry. Until now `fillFromPlace` used the address components and
+ * discarded the location, so every rate request — and a checkout makes several
+ * as somebody types — bought a second answer to a question already answered.
+ *
+ * The risk this guards against is a stale pin. A shopper picks "12 Oak Street",
+ * then edits the street number by hand: the fields now say one place and the
+ * stored coordinates another. Pricing from those coordinates would quote, and
+ * later collect from, the wrong address — silently, because nothing looks
+ * wrong. So the signature of the address the pin came from is stored with it,
+ * and the pin is only used while the address still matches.
+ *
+ * Paying for a geocode is the cheap failure. Delivering to the wrong house is
+ * not, so anything uncertain falls back to the platform resolving it.
+ * ========================================================================== */
+
+const DCP_PLACE_SESSION_KEY = 'dcp_resolved_place';
+
+/**
+ * A stable fingerprint of the address a pin belongs to.
+ *
+ * Must produce the same string in PHP and in the browser, so the rules are
+ * deliberately dull: lowercase, collapse runs of whitespace, trim, join with a
+ * character that does not appear in addresses.
+ */
+function dcp_address_signature( $address_1, $address_2, $city, $postcode ) {
+    $parts = array( $address_1, $address_2, $city, $postcode );
+    $parts = array_map(
+        static function ( $part ) {
+            $part = strtolower( trim( (string) $part ) );
+            return preg_replace( '/\s+/', ' ', $part );
+        },
+        $parts
+    );
+    return implode( '|', $parts );
+}
+
+/**
+ * Store what the browser resolved, against the address it resolved.
+ *
+ * Nonce-protected: this writes to the shopper's session and feeds pricing, so
+ * it should not be writable by any page that can guess the action name.
+ */
+add_action( 'wp_ajax_dcp_store_place', 'dcp_ajax_store_place' );
+add_action( 'wp_ajax_nopriv_dcp_store_place', 'dcp_ajax_store_place' );
+function dcp_ajax_store_place() {
+    check_ajax_referer( 'dcp_place', 'nonce' );
+
+    if ( ! function_exists( 'WC' ) || ! WC()->session ) {
+        wp_send_json_error( array( 'message' => 'No WooCommerce session' ), 400 );
+    }
+
+    $lat = isset( $_POST['lat'] ) ? (float) wp_unslash( $_POST['lat'] ) : 0.0;
+    $lng = isset( $_POST['lng'] ) ? (float) wp_unslash( $_POST['lng'] ) : 0.0;
+
+    // Zero/zero is the Gulf of Guinea and is also what an empty field casts to,
+    // so it is refused rather than stored and later trusted.
+    if ( abs( $lat ) < 0.0001 && abs( $lng ) < 0.0001 ) {
+        wp_send_json_error( array( 'message' => 'Implausible coordinates' ), 400 );
+    }
+    if ( $lat < -90 || $lat > 90 || $lng < -180 || $lng > 180 ) {
+        wp_send_json_error( array( 'message' => 'Coordinates out of range' ), 400 );
+    }
+
+    WC()->session->set( DCP_PLACE_SESSION_KEY, array(
+        'lat'       => $lat,
+        'lng'       => $lng,
+        'place_id'  => isset( $_POST['place_id'] ) ? sanitize_text_field( wp_unslash( $_POST['place_id'] ) ) : '',
+        'signature' => isset( $_POST['signature'] ) ? sanitize_text_field( wp_unslash( $_POST['signature'] ) ) : '',
+    ) );
+
+    wp_send_json_success();
+}
+
+/**
+ * The stored pin, but only if it still belongs to this address.
+ *
+ * Returns null when nothing is stored, when the shopper has edited the address
+ * since, or when WooCommerce has no session — in each case the platform
+ * geocodes, which costs a lookup and is always correct.
+ */
+function dcp_resolved_place_for( $destination ) {
+    if ( ! function_exists( 'WC' ) || ! WC()->session ) {
+        return null;
+    }
+
+    $stored = WC()->session->get( DCP_PLACE_SESSION_KEY );
+    if ( ! is_array( $stored ) || empty( $stored['signature'] ) ) {
+        return null;
+    }
+
+    $current = dcp_address_signature(
+        $destination['address_1'] ?? '',
+        $destination['address_2'] ?? '',
+        $destination['city']      ?? '',
+        $destination['postcode']  ?? ''
+    );
+
+    if ( ! hash_equals( (string) $stored['signature'], $current ) ) {
+        // Edited since it was picked. The pin is for somewhere else now.
+        dcp_log( 'place.stale', 'Stored place no longer matches the address; will geocode' );
+        return null;
+    }
+
+    return $stored;
 }

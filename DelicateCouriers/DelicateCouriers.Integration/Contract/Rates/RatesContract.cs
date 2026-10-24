@@ -30,6 +30,30 @@ public class DeliveryAddressDto
     public string ContactName { get; set; } = string.Empty;
     public string? ContactPhone { get; set; }
     public string? ContactEmail { get; set; }
+
+    /// <summary>
+    /// Where the shopper actually is, when the storefront already knows.
+    ///
+    /// The plugin runs Google Places autocomplete at checkout on the merchant's own API
+    /// key, and that response carries coordinates. Sending them means we price from the
+    /// pin Google already returned instead of paying to ask a second time for the same
+    /// answer — once per rate request, on every keystroke-debounced checkout.
+    ///
+    /// Optional, and absent from older plugins, so a null pair still geocodes. It is also
+    /// the honest default for an address somebody typed without picking a suggestion:
+    /// a wrong pin prices silently, where a missing one just costs a lookup.
+    /// </summary>
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+
+    /// <summary>
+    /// The Google place id behind those coordinates, when there is one.
+    ///
+    /// Not used for pricing. Logged so that a disputed delivery address can be traced
+    /// back to the exact place the shopper picked, rather than to our reading of a
+    /// string they typed.
+    /// </summary>
+    public string? PlaceId { get; set; }
 }
 
 public class ParcelInfoDto

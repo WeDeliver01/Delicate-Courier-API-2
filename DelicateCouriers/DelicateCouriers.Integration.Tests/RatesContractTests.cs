@@ -31,6 +31,8 @@ public class RatesContractTests : IClassFixture<RatesContractTests.Host>
         // One fixture serves the whole class, and xunit does not promise an order, so each
         // test starts from the same place rather than from whatever the last one left.
         _host.Geocoder.Resolves = true;
+        _host.Geocoder.Calls = 0;
+        _host.Engine.LastQuote = null;
         _host.Engine.Quote = _ => throw new InvalidOperationException("no stub configured");
     }
 
@@ -115,7 +117,59 @@ public class RatesContractTests : IClassFixture<RatesContractTests.Host>
         },
     };
 
-    private static object PluginPayload(int storeId = 1) => new
+    [Fact]
+    public async Task Coordinates_from_the_storefront_are_used_instead_of_geocoding()
+    {
+        // The merchant's own Google Places autocomplete already resolved this address and
+        // the merchant already paid for it. Asking again is a second charge for an answer
+        // we were handed, on every rate request a checkout makes.
+        _host.Engine.Quote = _ => StubQuote(totalCents: 17_250);
+
+        var response = await _host.CreateClient().PostAsJsonAsync(
+            "/api/public/shipping/rates", PluginPayload(latitude: -26.1076, longitude: 28.0567));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(0, _host.Geocoder.Calls);
+
+        // And priced from the pin that was sent, not from one we invented.
+        var drop = Assert.Single(_host.Engine.LastQuote!.Drops);
+        Assert.Equal(-26.1076, drop.Address.Location.Lat, 4);
+        Assert.Equal(28.0567, drop.Address.Location.Lng, 4);
+    }
+
+    [Fact]
+    public async Task An_address_with_no_coordinates_still_geocodes()
+    {
+        // Older plugins send none, and so does anyone who typed an address without
+        // picking a suggestion. Both must still get a price.
+        _host.Engine.Quote = _ => StubQuote(totalCents: 17_250);
+
+        var response = await _host.CreateClient()
+            .PostAsJsonAsync("/api/public/shipping/rates", PluginPayload());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(1, _host.Geocoder.Calls);
+    }
+
+    [Theory]
+    [InlineData(0, 0)]              // an uninitialised pair, which is the Gulf of Guinea
+    [InlineData(-200, 28.0567)]     // not a latitude
+    [InlineData(-26.1076, 400)]     // not a longitude
+    public async Task Implausible_coordinates_fall_through_to_the_geocoder(double lat, double lng)
+    {
+        // Pricing a delivery to nowhere without complaint is worse than paying for a
+        // lookup. Zero/zero in particular is what an uninitialised field looks like.
+        _host.Engine.Quote = _ => StubQuote(totalCents: 17_250);
+
+        var response = await _host.CreateClient().PostAsJsonAsync(
+            "/api/public/shipping/rates", PluginPayload(latitude: lat, longitude: lng));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(1, _host.Geocoder.Calls);
+    }
+
+    private static object PluginPayload(
+        int storeId = 1, double? latitude = null, double? longitude = null) => new
     {
         storeId,
         deliveryAddress = new
@@ -129,7 +183,10 @@ public class RatesContractTests : IClassFixture<RatesContractTests.Host>
             code = "0157",
             contactName = "Jane Smith",
             contactPhone = "0821234567",
-            contactEmail = "jane@example.com"
+            contactEmail = "jane@example.com",
+            // Null unless a test is about them, which is also how an older plugin sends it.
+            latitude,
+            longitude
         },
         parcels = new[]
         {
@@ -259,9 +316,15 @@ public class RatesContractTests : IClassFixture<RatesContractTests.Host>
         public Func<QuoteCall, EngineQuote> Quote { get; set; } =
             _ => throw new InvalidOperationException("no stub configured");
 
+        /// <summary>The last request priced, so a test can assert what was actually sent.</summary>
+        public EngineQuoteRequest? LastQuote { get; set; }
+
         public Task<EngineQuote> CreateQuoteAsync(
             string accountRef, EngineQuoteRequest request, CancellationToken cancellationToken)
-            => Task.FromResult(Quote(new QuoteCall(accountRef, request)));
+        {
+            LastQuote = request;
+            return Task.FromResult(Quote(new QuoteCall(accountRef, request)));
+        }
 
         // Quoting is the only thing the rates path may do. Booking from a checkout rate
         // request would be a serious bug, so these throw rather than returning something.
@@ -289,10 +352,17 @@ public class RatesContractTests : IClassFixture<RatesContractTests.Host>
 
         public bool Resolves { get; set; } = true;
 
+        /// <summary>How many times it was asked. The point of sending coordinates is that
+        /// this stays at zero.</summary>
+        public int Calls { get; set; }
+
         public Task<ResolvedPlace?> ResolveAsync(string query, CancellationToken cancellationToken)
-            => Task.FromResult(Resolves
+        {
+            Calls++;
+            return Task.FromResult(Resolves
                 ? new ResolvedPlace("12 Oak Street, Centurion", Lat, Lng, "Centurion", "Pretoria", "0157")
                 : null);
+        }
     }
 
     public sealed class Host : WebApplicationFactory<Program>

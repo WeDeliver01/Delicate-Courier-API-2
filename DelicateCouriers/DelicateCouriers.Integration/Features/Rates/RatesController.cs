@@ -53,8 +53,7 @@ public class RatesController : ControllerBase
 
         try
         {
-            var destination = await _geocoder.ResolveAsync(
-                Describe(request.DeliveryAddress), cancellationToken);
+            var destination = await ResolveDestination(request, cancellationToken);
             if (destination is null)
             {
                 // Not an error: the shopper is probably still typing. Saying so plainly beats
@@ -174,6 +173,48 @@ public class RatesController : ControllerBase
         address.Code,
         address.Country
     }.Where(part => !string.IsNullOrWhiteSpace(part)));
+
+    /// <summary>
+    /// Where to deliver, preferring what the storefront already established.
+    ///
+    /// The plugin runs Google Places autocomplete on the merchant's own key, so by the
+    /// time a shopper has picked a suggestion their coordinates are already known and
+    /// already paid for. Geocoding the same address again is a second charge for an
+    /// answer we were handed — on every rate request, and a checkout makes several as
+    /// the shopper types.
+    ///
+    /// Falls back to geocoding when they are absent, which covers older plugins and
+    /// anyone who typed an address without picking a suggestion.
+    /// </summary>
+    private async Task<ResolvedPlace?> ResolveDestination(
+        GetRatesRequestDto request, CancellationToken cancellationToken)
+    {
+        var address = request.DeliveryAddress;
+
+        if (address.Latitude is { } lat && address.Longitude is { } lng && IsPlausible(lat, lng))
+        {
+            _logger.LogDebug(
+                "Store {StoreId}: pricing from storefront coordinates (place {PlaceId})",
+                request.StoreId, address.PlaceId ?? "(none)");
+
+            return new ResolvedPlace(
+                Describe(address), lat, lng, address.LocalArea, address.City, address.Code);
+        }
+
+        return await _geocoder.ResolveAsync(Describe(address), cancellationToken);
+    }
+
+    /// <summary>
+    /// A sanity check, not a validation.
+    ///
+    /// Zero/zero is the Gulf of Guinea and is what an uninitialised pair looks like;
+    /// out-of-range values cannot be a place at all. Either would price a delivery to
+    /// nowhere without complaint, so they fall through to the geocoder instead.
+    /// </summary>
+    private static bool IsPlausible(double lat, double lng) =>
+        lat is >= -90 and <= 90
+        && lng is >= -180 and <= 180
+        && !(Math.Abs(lat) < 0.0001 && Math.Abs(lng) < 0.0001);
 
     private static EngineQuoteRequest BuildQuoteRequest(
         Merchant merchant,

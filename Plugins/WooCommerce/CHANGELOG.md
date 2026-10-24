@@ -1,5 +1,27 @@
 # Delicate Courier Platform — WooCommerce plugin changelog
 
+## 2.12.0 (Default) — 2026-10-24
+
+### Stop paying twice to resolve the same address
+- Places autocomplete already resolves the shopper's address on the merchant's
+  own Google key, and that response carries coordinates. The plugin fetched
+  them and threw them away, so the platform then geocoded the same address
+  again — on every rate request, and a checkout makes several as somebody
+  types. The pin is now kept and sent.
+- Three optional fields on the rates request: `latitude`, `longitude`,
+  `placeId`. Backward-compatible both ways — an older plugin sends none and
+  the platform geocodes as before; an older platform ignores them.
+
+### A stale pin is refused
+- Pick a suggestion, then edit the street number by hand, and the stored
+  coordinates belong to a different house. Pricing from them would quote, and
+  later collect at, the wrong address with nothing on screen looking wrong.
+- The signature of the address a pin came from is stored with it and checked
+  before use. A mismatch falls back to geocoding. Paying for a lookup is the
+  cheap failure; delivering to the wrong house is not.
+- Coordinates that cannot be a place are refused outright rather than stored:
+  zero/zero (which is what an empty field casts to) and anything out of range.
+
 ## 2.11.0 (Default) — 2026-10-23
 
 ### Several delivery options, chosen by the shopper
