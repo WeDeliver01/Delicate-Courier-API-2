@@ -586,9 +586,12 @@ export default function StoreEditPage() {
                       id="engineAccountRef"
                       value={engineAccountRef}
                       onChange={(e) => setEngineAccountRef(e.target.value)}
-                      placeholder="e.g., honeybee-bakery"
+                      placeholder="e.g., KRU001"
                       disabled={saving}
                     />
+                    <p className="mt-1 text-xs text-gray-500">
+                      The customer&apos;s account code in the Engine.
+                    </p>
                   </div>
 
                   <div>

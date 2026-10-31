@@ -94,3 +94,35 @@ All `0600`, root-owned, outside the repository:
 The Engine credential lives only in `integration.env`. The portal reaches the
 Engine through the integration service rather than holding one of its own, so
 there is one key to rotate and one grant list to audit.
+
+## Onboarding a merchant
+
+Four things, in this order. The first two are on the Engine, the last two here.
+
+1. **The customer has an Engine account.** Every account gets a short code when it is
+   created — `KRU001`, `THE001` — and that code is the only identifier the rest of this
+   needs. It is on their account page in the Engine console, under **Integration**.
+
+2. **Switch booking on for them.** Same panel, "May book for this account". Until that is
+   on, their shop is refused however correct its settings are. Super admin only: it is
+   standing permission to book against that customer's wallet.
+
+   Do it there rather than with `PATCH /v1/admin/service-clients/{id}`. That endpoint's
+   `accountIds` replaces the whole list, so adding the second merchant through it revokes
+   the first, silently.
+
+3. **Create the store in this portal** with that code as the Engine account reference.
+
+4. **Install the plugin** on their shop and paste the store's API key.
+
+There is no mapping row to write any more. The Engine resolves an account reference by
+looking for a matching `account_external_refs` row first and falling back to the account's
+own code, so the ordinary case needs nothing registered. The mapping table is still there
+for a system that wants to keep its own identifiers, which is what it was built for.
+
+If a store is set up and still cannot book, ask the integration service rather than
+guessing — it probes the Engine and names the step that is missing:
+
+```bash
+curl -s -H "X-Admin-Key: $KEY" http://127.0.0.1:8096/api/admin/merchants/{storeId}/engine-readiness
+```

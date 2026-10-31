@@ -717,13 +717,14 @@ function StoreWizardForm() {
                         id="engineAccountRef"
                         value={formData.engineAccountRef}
                         onChange={(e) => updateFormData('engineAccountRef', e.target.value)}
-                        placeholder="e.g., honeybee-bakery"
+                        placeholder="e.g., KRU001"
                       />
-                      {/* The store's own name for itself. The Engine maps it to an account,
-                          so this portal never has to store Engine ids. */}
+                      {/* The account's own code, off its page in the Engine. It used to be a
+                          free-text name that a super_admin then had to map by hand, which is
+                          a step nobody remembered until a merchant's checkout was down. */}
                       <p className="mt-1 text-xs text-gray-500">
-                        This store&apos;s own reference. It must be mapped to an Engine account
-                        before orders can book.
+                        The customer&apos;s account code in the Engine — shown on their account
+                        page under Integration. Their shop also needs booking switched on there.
                       </p>
                     </div>
                     <div>

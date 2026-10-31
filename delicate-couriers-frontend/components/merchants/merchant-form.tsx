@@ -358,7 +358,7 @@ export function MerchantForm({
               onChange={(e) => set('engineAccountRef', e.target.value)}
             />
             <p className="mt-1 text-xs text-gray-500">
-              As mapped on the Engine, e.g. store-42.
+              The customer&apos;s account code on the Engine, e.g. KRU001.
             </p>
           </div>
           <div>

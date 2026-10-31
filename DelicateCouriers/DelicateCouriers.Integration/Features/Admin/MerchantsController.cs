@@ -128,12 +128,13 @@ public class MerchantsController : ControllerBase
         EngineReadiness.Ready => null,
 
         EngineReadiness.NoAccountMapping =>
-            "Map this merchant to an Engine account: POST /v1/admin/account-external-refs "
-            + $"with system \"integration-service\" and externalId \"{accountRef}\". Needs super_admin.",
+            $"The Engine does not recognise \"{accountRef}\". It should be the customer's "
+            + "account code, shown on their account page in the Engine under Integration.",
 
         EngineReadiness.NotGrantedToCredential =>
-            "Grant the account to this service: PATCH /v1/admin/service-clients/{id} on the "
-            + "\"integration-service\" client, adding the account to accountIds. Needs super_admin.",
+            "The account exists but has not been allowed to book through this service. Switch "
+            + "it on from the customer's account page in the Engine, under Integration. "
+            + "Needs super_admin.",
 
         EngineReadiness.AccountNotActive =>
             "The Engine account is suspended or closed. Reactivate it in the Engine.",
