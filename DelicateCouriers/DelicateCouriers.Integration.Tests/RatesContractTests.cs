@@ -117,6 +117,35 @@ public class RatesContractTests : IClassFixture<RatesContractTests.Host>
         },
     };
 
+    /// <summary>A merchant saved before the collection pin was validated: still at 0,0.</summary>
+    private static Merchant StrandedStore()
+    {
+        var stranded = TwoLevelStore();
+        stranded.StoreId = 9;
+        stranded.Collection.Latitude = 0;
+        stranded.Collection.Longitude = 0;
+        return stranded;
+    }
+
+    [Fact]
+    public async Task A_store_with_no_collection_pin_is_not_priced_at_all()
+    {
+        // 0,0 is in the Gulf of Guinea and the Engine will price a loop from there without
+        // complaint: the same Pretoria delivery came to R101 169 instead of R211. A checkout
+        // offering no delivery is a bad afternoon; one offering it at six figures is worse,
+        // because it looks like it is working.
+        var quoted = false;
+        _host.Engine.Quote = _ => { quoted = true; return StubQuote(totalCents: 17_250); };
+
+        var response = await _host.CreateClient()
+            .PostAsJsonAsync("/api/public/shipping/rates", PluginPayload(storeId: 9));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.False(body.RootElement.GetProperty("success").GetBoolean());
+        Assert.False(quoted, "the Engine should never have been asked to price from 0,0");
+    }
+
     [Fact]
     public async Task Coordinates_from_the_storefront_are_used_instead_of_geocoding()
     {
@@ -392,6 +421,7 @@ public class RatesContractTests : IClassFixture<RatesContractTests.Host>
                             // Offers two levels, so the multi-rate behaviour has something
                             // real to assert against rather than a single-item list.
                             TwoLevelStore(),
+                            StrandedStore(),
                             new()
                             {
                                 StoreId = 1,

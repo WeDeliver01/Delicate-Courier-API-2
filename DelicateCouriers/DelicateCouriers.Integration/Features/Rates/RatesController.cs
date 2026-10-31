@@ -51,6 +51,22 @@ public class RatesController : ControllerBase
             });
         }
 
+        // The pin every quote is measured from. A merchant saved before this was validated
+        // can still be sitting at 0,0, and the Engine does not refuse that — it prices it,
+        // as a seven-thousand-kilometre collection. Quoting nothing is recoverable; quoting
+        // six figures at a stranger's checkout is not.
+        if (!IsPlausible(merchant.Collection.Latitude, merchant.Collection.Longitude))
+        {
+            _logger.LogError(
+                "Store {StoreId} has no usable collection pin ({Lat},{Lng}); refusing to price",
+                request.StoreId, merchant.Collection.Latitude, merchant.Collection.Longitude);
+            return Ok(new GetRatesResponseDto
+            {
+                Success = false,
+                ErrorMessage = "No shipping rates available"
+            });
+        }
+
         try
         {
             var destination = await ResolveDestination(request, cancellationToken);

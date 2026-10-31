@@ -68,6 +68,49 @@ public class MerchantAdminTests : IClassFixture<MerchantAdminTests.Host>
     };
 
     [Fact]
+    public async Task A_collection_pin_at_null_island_is_refused_rather_than_priced()
+    {
+        // Not a theoretical input: the form's number fields reported "" for a half-typed
+        // "-25.75", which became 0, and every merchant onboarded through it was saved at 0,0.
+        // The Engine prices that happily -- a Pretoria delivery collected from the Gulf of
+        // Guinea came to R101 169 instead of R211 -- so the refusal has to be here.
+        var merchant = NewMerchant();
+        merchant.Collection.Latitude = 0;
+        merchant.Collection.Longitude = 0;
+
+        var response = await Authorised().PostAsJsonAsync("/api/admin/merchants", merchant);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("Atlantic", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task A_coordinate_outside_the_world_is_refused()
+    {
+        var merchant = NewMerchant();
+        merchant.Collection.Latitude = 91;
+
+        var response = await Authorised().PostAsJsonAsync("/api/admin/merchants", merchant);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_package_type_named_rather_than_identified_is_refused()
+    {
+        // "Other" is the name in the catalogue and reads like an answer. The Engine wants the
+        // uuid and says only "Invalid uuid", at a shopper's checkout, as a 500 with a
+        // reference -- so it is worth catching while the person who typed it is still here.
+        var merchant = NewMerchant();
+        merchant.DefaultPackageTypeId = "Other";
+
+        var response = await Authorised().PostAsJsonAsync("/api/admin/merchants", merchant);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("uuid", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
     public async Task Onboarding_a_merchant_needs_no_deploy_and_returns_their_webhook_secret()
     {
         var response = await Authorised().PostAsJsonAsync("/api/admin/merchants", NewMerchant());

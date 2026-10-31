@@ -44,7 +44,20 @@ export function MerchantForm({
       collection: { ...(prev.collection ?? blankAddress()), [key]: value },
     }))
 
+  /** Both ends of a pasted pair, in one update: two setAddress calls would race. */
+  const setAddress2 = (latitude: number, longitude: number) =>
+    setV((prev) => ({
+      ...prev,
+      collection: { ...(prev.collection ?? blankAddress()), latitude, longitude },
+    }))
+
   const address: MerchantAddress = v.collection ?? blankAddress()
+
+  // Null Island is what an empty coordinate field becomes, and the engine prices it happily:
+  // a Pretoria delivery collected from the Gulf of Guinea quotes six figures. Said on the
+  // form rather than discovered at somebody's checkout.
+  const collectionPinLooksReal =
+    Math.abs(address.latitude) > 0.0001 || Math.abs(address.longitude) > 0.0001
 
   const levels: MerchantServiceLevel[] = v.serviceLevels ?? []
 
@@ -259,30 +272,32 @@ export function MerchantForm({
           </div>
           <div>
             <Label htmlFor="lat">Latitude</Label>
-            <Input
+            <Coordinate
               id="lat"
-              type="number"
-              step="any"
-              required
               value={address.latitude}
-              onChange={(e) => setAddress('latitude', Number(e.target.value))}
+              onChange={(v) => setAddress('latitude', v)}
+              onPair={(lat, lng) => setAddress2(lat, lng)}
             />
           </div>
           <div>
             <Label htmlFor="lng">Longitude</Label>
-            <Input
+            <Coordinate
               id="lng"
-              type="number"
-              step="any"
-              required
               value={address.longitude}
-              onChange={(e) => setAddress('longitude', Number(e.target.value))}
+              onChange={(v) => setAddress('longitude', v)}
+              onPair={(lat, lng) => setAddress2(lat, lng)}
             />
             {/* Every quote is a loop measured from here. A wrong pin is a wrong price on
                 every order that merchant takes, which is why it is typed and not guessed. */}
             <p className="mt-1 text-xs text-gray-500">
-              Every price is measured from this point.
+              Every price is measured from this point. Paste both from Google Maps at once if
+              you like — &ldquo;-25.7479, 28.2293&rdquo; fills in each.
             </p>
+            {!collectionPinLooksReal && (
+              <p className="mt-1 text-xs text-red-600">
+                0,&nbsp;0 is in the Atlantic Ocean. Every quote would be priced from there.
+              </p>
+            )}
           </div>
           <div>
             <Label htmlFor="contactName">Contact name</Label>
@@ -395,5 +410,68 @@ export function MerchantForm({
         </Button>
       </div>
     </form>
+  )
+}
+
+/**
+ * A latitude or longitude, typed by a person.
+ *
+ * This was an `<input type="number">` whose onChange did `Number(e.target.value)`, and the
+ * combination made a South African coordinate impossible to enter. A number input reports
+ * `value === ''` while what is typed is not yet a valid number — and "-" is not, on its own.
+ * So the first keystroke of "-25.75" became `Number('') === 0`, React wrote that 0 back over
+ * the "-" the browser was still holding, and the field sat at 0 refusing the minus sign.
+ * Every latitude in this country is negative, so the only values reachable were the wrong
+ * ones, and 0,0 is what every merchant ended up saved with.
+ *
+ * Hence a text input with a draft: what is typed stays exactly as typed, and the number is
+ * handed up only once it parses. Intermediate states a person passes through on the way to a
+ * real coordinate -- "-", "-25." -- are left alone instead of being corrected into nonsense.
+ */
+function Coordinate({
+  id,
+  value,
+  onChange,
+  onPair,
+}: {
+  id: string
+  value: number
+  onChange: (v: number) => void
+  onPair: (lat: number, lng: number) => void
+}) {
+  const [draft, setDraft] = useState<string | null>(null)
+
+  // The draft owns the field while it is being edited; otherwise the saved value shows, so a
+  // pasted pair filling the *other* box still appears here.
+  const shown = draft ?? String(value)
+
+  const handle = (text: string) => {
+    // "-25.7479, 28.2293" is what Google Maps puts on the clipboard, and splitting it by hand
+    // into two boxes is a step at which somebody drops a digit.
+    const pair = text.match(
+      /^\s*(-?\d+(?:\.\d+)?)\s*[,/\s]\s*(-?\d+(?:\.\d+)?)\s*$/,
+    )
+    if (pair) {
+      setDraft(null)
+      onPair(Number(pair[1]), Number(pair[2]))
+      return
+    }
+
+    setDraft(text)
+    const n = Number(text)
+    if (text.trim() !== '' && Number.isFinite(n)) onChange(n)
+  }
+
+  return (
+    <Input
+      id={id}
+      type="text"
+      inputMode="decimal"
+      required
+      value={shown}
+      onChange={(e) => handle(e.target.value)}
+      onBlur={() => setDraft(null)}
+      placeholder="e.g. -25.7479"
+    />
   )
 }

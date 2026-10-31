@@ -111,10 +111,52 @@ public class MerchantsController : ControllerBase
             .GroupBy(l => l.CheckoutCode.Trim(), StringComparer.OrdinalIgnoreCase)
             .FirstOrDefault(g => g.Count() > 1);
 
-        return duplicate is null
-            ? null
-            : $"Service level code \"{duplicate.Key}\" is used twice. Codes become the "
-              + "WooCommerce method id, so they have to be distinct.";
+        if (duplicate is not null)
+        {
+            return $"Service level code \"{duplicate.Key}\" is used twice. Codes become the "
+                   + "WooCommerce method id, so they have to be distinct.";
+        }
+
+        // The Engine identifies a package type by uuid and refuses anything else with a bare
+        // "Invalid uuid". Caught here, where the person who typed it is looking, rather than
+        // at a shopper's checkout as a 500 with a reference to go and look up.
+        if (!Guid.TryParse(body.DefaultPackageTypeId?.Trim(), out _))
+        {
+            return "The default package type must be the Engine's id for it — a uuid, not the "
+                   + "name. It is on the package type in the Engine's catalogue.";
+        }
+
+        return InvalidCollectionPin(body.Collection);
+    }
+
+    /// <summary>
+    /// The collection pin, which is the one field here that fails silently.
+    ///
+    /// Every quote is a loop measured from this point, so a wrong pin is not a broken
+    /// checkout — it is a working checkout quoting the wrong price on every order. 0,0 is the
+    /// Gulf of Guinea and is also what an empty number field becomes: a Pretoria delivery
+    /// collected from there priced at R101 169 instead of R211, and nothing anywhere said so.
+    ///
+    /// Refused here rather than only in the form, because the form is not the only way in.
+    /// </summary>
+    private static string? InvalidCollectionPin(MerchantAddress? collection)
+    {
+        if (collection is null) return "A collection address is required.";
+
+        if (Math.Abs(collection.Latitude) < 0.0001 && Math.Abs(collection.Longitude) < 0.0001)
+        {
+            return "The collection latitude and longitude are both 0, which is a point in the "
+                   + "Atlantic Ocean. Every quote is measured from here, so this has to be the "
+                   + "real pickup point.";
+        }
+
+        if (collection.Latitude is < -90 or > 90 || collection.Longitude is < -180 or > 180)
+        {
+            return "The collection latitude must be between -90 and 90, and the longitude "
+                   + "between -180 and 180.";
+        }
+
+        return null;
     }
 
     /// <summary>
