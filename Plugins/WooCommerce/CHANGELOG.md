@@ -1,5 +1,31 @@
 # Delicate Courier Platform — WooCommerce plugin changelog
 
+## 2.13.0 (Default) — 2026-11-01
+
+### Shiplogic is gone
+- The plugin used to fall back to calling Shiplogic directly from the
+  merchant's own site when the platform could not be reached, on credentials
+  the merchant had pasted into a settings field. The platform no longer books
+  that courier, so the fallback could only quote a price from a company that
+  was never going to collect the parcel — and it fired precisely when the
+  platform was already struggling, so nobody would have been watching.
+- Rates now fall back to the last known price, and then to nothing. Showing a
+  shopper no delivery option gets a phone call. Showing them a price nobody
+  will honour does not.
+- Removed with it: the direct HTTP client, the "Test direct Shiplogic call"
+  diagnostic, the bearer token / account id / provider id settings fields and
+  their constants, filters and accessors.
+
+### Stored credentials are deleted, not orphaned
+- `dcp_shiplogic_bearer`, `dcp_shiplogic_api_key`, `dcp_shiplogic_account_id`
+  and `dcp_shiplogic_provider_id` are removed from `wp_options` on upgrade. A
+  bearer token nobody uses is still a bearer token in somebody's database.
+
+### Kept honest
+- `tests/no_shiplogic_test.php` fails if any of it comes back, and fails if
+  those options stop being deleted on upgrade.
+
+
 ## 2.12.0 (Default) — 2026-10-24
 
 ### Stop paying twice to resolve the same address

@@ -3,7 +3,7 @@
  * Plugin Name: Delicate Courier Platform
  * Plugin URI:  https://delicatecourier.co.za
  * Description: WooCommerce integration for the Delicate Courier Platform. Provides live courier rates at checkout (server-side geocoded via the platform) and signed order push to the platform for automated shipment creation.
- * Version:     2.12.0
+ * Version:     2.13.0
  * Author:      Delicate Courier
  * Author URI:  https://delicatecourier.co.za
  * License:     Proprietary
@@ -59,6 +59,17 @@ if ( ! defined( 'ABSPATH' ) ) {
  *              coordinates, quote status/price/message) above the existing
  *              Shipment & Tracking section. Reads order meta only; degrades
  *              gracefully on non-DTSC stores.
+ *     v2.13.0 — NO contract change. Removes the direct-Shiplogic fallback and
+ *              every Shiplogic setting, diagnostic and credential with it.
+ *              The platform no longer books that courier, so the fallback
+ *              could only quote a price from a company that would not be
+ *              collecting the parcel — and it fired exactly when the platform
+ *              was already struggling, so nobody would have been watching.
+ *              The stored bearer token, account id and provider id are
+ *              deleted on upgrade: a credential for a service we no longer
+ *              call is worth nothing to keep and something to lose.
+ *              Rates now fall back to the last known price and then to
+ *              nothing, which is the honest answer.
  *     v2.12.0 — adds three OPTIONAL fields to the rates request's
  *              deliveryAddress: latitude, longitude and placeId.
  *              Backward-compatible both ways: an older plugin sends none and
@@ -120,23 +131,14 @@ if ( ! defined( 'ABSPATH' ) ) {
  *                         serviceLevelCode, serviceLevelName, cost, currency,
  *                         estimatedDeliveryDays } ], "errorMessage": str|null }
  *
- *   The platform performs server-side geocoding (Google -> Nominatim fallback,
- *   results cached) before calling Shiplogic /v2/rates with explicit lat/lng.
- *   This is what unblocked the prior "rates:null" issue. The merchant's
- *   Shiplogic bearer token is therefore NOT required for live rates from
- *   v2.1.0 onwards — it is read from the tenant record on the platform side.
- *   The token field on the settings page is kept for backwards compatibility
- *   and is only used by the "Test direct Shiplogic call" diagnostic button.
+ *   The platform resolves the delivery address and prices it. This plugin
+ *   holds no courier credentials of its own and makes no courier calls: the
+ *   store's own key is the webhook secret, and it signs, and that is all.
  *
  *   Merchant-editable settings:
  *     Always:
  *       dcp_store_id, dcp_webhook_secret  (autoload=no)
  *       dcp_enable_live_rates, dcp_auto_sync_orders, dcp_debug_logging
- *     Optional (kept for direct-call diagnostic only):
- *       dcp_shiplogic_bearer  (autoload=no)
- *     Default build only (hidden in branded builds where the values are
- *     pre-baked as DCP_DEFAULT_* constants):
- *       dcp_shiplogic_account_id, dcp_shiplogic_provider_id
  *
  *   All other configuration (service level, collection address, offset
  *   minutes, cache TTL, retry count) is sourced from DCP_DEFAULT_*
@@ -148,7 +150,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * CONSTANTS
  * ========================================================================== */
 
-define( 'DCP_VERSION',         '2.12.0' );
+define( 'DCP_VERSION',         '2.13.0' );
 define( 'DCP_PLUGIN_FILE',     __FILE__ );
 define( 'DCP_PLUGIN_DIR',      plugin_dir_path( __FILE__ ) );
 define( 'DCP_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
@@ -168,19 +170,6 @@ define( 'DCP_PLATFORM_ORDER_PATH',  '/api/webhooks/plugin/order' );
 define( 'DCP_PLATFORM_HEALTH_PATH', '/api/webhooks/plugin/health' );
 define( 'DCP_PLATFORM_RATES_PATH',  '/api/public/shipping/rates' );
 
-// Shiplogic API — used directly from the merchant's site for live rates.
-define( 'DCP_SHIPLOGIC_BASE_URL',   'https://api.shiplogic.com' );
-define( 'DCP_SHIPLOGIC_RATES_PATH', '/v2/rates' );
-
-// Shiplogic account / provider / service level.
-//   - Branded builds pre-bake these via define() before this file is loaded,
-//     so the merchant doesn't have to enter them.
-//   - The default plugin ships with NO tenant data. The merchant enters their
-//     own Shiplogic Account ID and Provider ID on the settings page. Service
-//     level defaults to 'STD' (Shiplogic's generic Standard code) and can be
-//     overridden via the dcp_service_level_code filter.
-dcp_define_if_unset( 'DCP_DEFAULT_SHIPLOGIC_ACCOUNT_ID',  '' );
-dcp_define_if_unset( 'DCP_DEFAULT_SHIPLOGIC_PROVIDER_ID', '' );
 // Empty means "offer whatever the platform returned", which is now the merchant's
 // own configured list. Filtering again here would be a second source of truth that
 // can only ever disagree with the first. A branded build may still pre-bake a code.
@@ -223,32 +212,7 @@ function dcp_opt( $key, $default = '' ) {
 
 function dcp_store_id()              { return trim( (string) dcp_opt( 'store_id' ) ); }
 function dcp_webhook_secret()        { return (string) dcp_opt( 'webhook_secret' ); }
-function dcp_shiplogic_bearer()      { return trim( (string) dcp_opt( 'shiplogic_bearer' ) ); }
-
-// Resolution order for these three values:
-//   1. DCP_DEFAULT_* constant (pre-baked in a branded build) if non-empty.
-//   2. wp_options value the merchant entered on the settings page.
-//   3. Filter override (for developers using a mu-plugin / functions.php).
-// Branded builds therefore hide the Account/Provider fields from the UI;
-// the default build shows them.
-function dcp_shiplogic_account_id() {
-    $v = DCP_DEFAULT_SHIPLOGIC_ACCOUNT_ID !== '' ? (string) DCP_DEFAULT_SHIPLOGIC_ACCOUNT_ID : trim( (string) dcp_opt( 'shiplogic_account_id' ) );
-    return (string) apply_filters( 'dcp_shiplogic_account_id', $v );
-}
-function dcp_shiplogic_provider_id() {
-    $v = DCP_DEFAULT_SHIPLOGIC_PROVIDER_ID !== '' ? (string) DCP_DEFAULT_SHIPLOGIC_PROVIDER_ID : trim( (string) dcp_opt( 'shiplogic_provider_id' ) );
-    return (string) apply_filters( 'dcp_shiplogic_provider_id', $v );
-}
 function dcp_service_level_code() { return (string) apply_filters( 'dcp_service_level_code', DCP_DEFAULT_SERVICE_LEVEL_CODE ); }
-
-/**
- * True when the build has NOT pre-baked the Shiplogic account/provider — i.e.
- * the default plugin. Used by the settings page to decide whether to render
- * those two input fields.
- */
-function dcp_shiplogic_ids_are_editable() {
-    return DCP_DEFAULT_SHIPLOGIC_ACCOUNT_ID === '' && DCP_DEFAULT_SHIPLOGIC_PROVIDER_ID === '';
-}
 
 /**
  * v2.7.0 — Google Maps API key used from the BROWSER at checkout (Places
@@ -293,7 +257,7 @@ function dcp_collection_address() {
     //      activation / lazy fetch.
     //   3. Pre-baked constant (branded build override).
     //   4. Lazy geocode RIGHT NOW if still missing, then re-read.
-    // The fourth tier exists because Shiplogic's /v2/rates returns rates:null
+    // The fourth tier exists because a courier API can return rates:null
     // when collection lat/lng are absent. We will never knowingly send null
     // coordinates again after the lessons of v2.1.x.
     $manual_lat = trim( (string) get_option( 'dcp_collection_latitude_manual',  '' ) );
@@ -427,7 +391,7 @@ function dcp_log_http( $context, $detail, $level, $data ) {
 
 /**
  * Strip / mask anything that could leak credentials (Bearer tokens, plugin
- * signatures, webhook secret, Shiplogic token). Operates on a normalized
+ * signatures, webhook secret). Operates on a normalized
  * shape produced by dcp_log_http().
  */
 function dcp_log_sanitize_data( $data ) {
@@ -503,10 +467,15 @@ function dcp_on_activate() {
     $legacy = array(
         'dcp_api_key',                 // legacy bearer auth — replaced by HMAC
         'dcp_platform_api_key',        // older alias
-        'dcp_shiplogic_api_key',       // legacy Shiplogic option name
         'dcp_api_base_url',            // URL is hard-coded now
-        'dcp_shiplogic_account_id',    // moved to constant / filter
-        'dcp_shiplogic_provider_id',   // moved to constant / filter
+        // The courier behind this plugin changed. These are credentials and ids for a
+        // service it no longer calls, and a bearer token nobody uses is still a bearer
+        // token sitting in somebody's database, so the upgrade takes them out rather
+        // than leaving them to be found later.
+        'dcp_shiplogic_api_key',
+        'dcp_shiplogic_bearer',
+        'dcp_shiplogic_account_id',
+        'dcp_shiplogic_provider_id',
         'dcp_service_level_code',      // moved to constant / filter
         'dcp_collection_company', 'dcp_collection_street', 'dcp_collection_suburb',
         'dcp_collection_city', 'dcp_collection_province', 'dcp_collection_postal_code',
@@ -515,8 +484,8 @@ function dcp_on_activate() {
         // legacy list as of v2.5.0. They are now first-class persisted options
         // populated by the geocoder. Deleting them on activation would wipe
         // valid coordinates every time the plugin re-activates, forcing a
-        // re-geocode and risking Shiplogic-side null-rate failures during the
-        // brief window where coordinates are missing.
+        // re-geocode and risking null-rate failures during the brief window
+        // where coordinates are missing.
         'dcp_collection_contact_name', 'dcp_collection_contact_phone', 'dcp_collection_contact_email',
         'dcp_collection_offset_minutes',
     );
@@ -534,7 +503,7 @@ function dcp_on_activate() {
     // (Nominatim is used when this is empty).
     // dcp_google_maps_api_key added in v2.7.0 (checkout Places autocomplete +
     // special-trip distance quotes).
-    foreach ( array( 'dcp_store_id', 'dcp_webhook_secret', 'dcp_shiplogic_bearer', 'dcp_google_geocoding_api_key', 'dcp_google_maps_api_key' ) as $secret ) {
+    foreach ( array( 'dcp_store_id', 'dcp_webhook_secret', 'dcp_google_geocoding_api_key', 'dcp_google_maps_api_key' ) as $secret ) {
         dcp_ensure_secret_autoload_off( $secret );
     }
 
@@ -597,7 +566,7 @@ function dcp_bootstrap() {
         return;
     }
 
-    // Shipping method (live rates from Shiplogic).
+    // Shipping method (live rates from the platform).
     add_action( 'woocommerce_shipping_init', 'dcp_load_shipping_method' );
     add_filter( 'woocommerce_shipping_methods', 'dcp_register_shipping_method' );
 
@@ -618,7 +587,6 @@ function dcp_bootstrap() {
     add_action( 'wp_ajax_dcp_test_platform_health', 'dcp_ajax_test_platform_health' );
     add_action( 'wp_ajax_dcp_test_platform_order',  'dcp_ajax_test_platform_order' );
     add_action( 'wp_ajax_dcp_test_platform_rates',  'dcp_ajax_test_platform_rates' );
-    add_action( 'wp_ajax_dcp_test_shiplogic_rates', 'dcp_ajax_test_shiplogic_rates' );
     add_action( 'wp_ajax_dcp_clear_debug_logs',     'dcp_ajax_clear_debug_logs' );
     add_action( 'wp_ajax_dcp_fetch_debug_logs',     'dcp_ajax_fetch_debug_logs' );
     add_action( 'wp_ajax_dcp_outbox_process_now',   'dcp_ajax_outbox_process_now' );
@@ -987,7 +955,7 @@ function dcp_rest_receive_shipment_meta( WP_REST_Request $request ) {
         }
         // Refuse to overwrite a previously-saved non-empty value with an
         // empty one. This guards against the "platform re-syncs a record
-        // that hasn't yet been populated from Shiplogic and wipes a real
+        // that hasn't yet been populated from the platform and wipes a real
         // tracking number" failure mode. The platform can still clear a
         // field explicitly by sending the sentinel string "__dcp_clear__".
         if ( $stored === '' ) {
@@ -1049,7 +1017,7 @@ function dcp_rest_receive_shipment_meta( WP_REST_Request $request ) {
 }
 
 /* ============================================================================
- * SHIPPING METHOD — live Shiplogic rates
+ * SHIPPING METHOD — live platform rates
  * ========================================================================== */
 
 function dcp_load_shipping_method() {
@@ -1061,7 +1029,7 @@ function dcp_load_shipping_method() {
                 $this->id                 = 'delicate_courier_platform';
                 $this->instance_id        = absint( $instance_id );
                 $this->method_title       = __( 'Delicate Courier Platform', 'dcp' );
-                $this->method_description = __( 'Live courier rates from Shiplogic via the Delicate Courier Platform.', 'dcp' );
+                $this->method_description = __( 'Live courier rates from the Delicate Courier Platform.', 'dcp' );
                 $this->supports           = array( 'shipping-zones', 'instance-settings', 'instance-settings-modal' );
 
                 $this->init_form_fields();
@@ -1342,10 +1310,10 @@ function dcp_normalize_province( $state ) {
 /* ============================================================================
  * GEOCODER — Nominatim primary, Google optional
  * ============================================================================
- * Why this exists: Shiplogic's /v2/rates endpoint silently returns
+ * Why this exists: a courier rates endpoint can silently return
  * `rates: null` when lat/lng are missing on the collection address. We
  * spent serious time discovering that during the v2.1 debug marathon. The
- * platform handles this server-side; the direct-Shiplogic fallback path
+ * platform handles this server-side; the local fallback path
  * (added in v2.5.0) doesn't have that luxury, so the plugin now performs
  * its own geocoding and persists the result.
  *
@@ -1540,166 +1508,13 @@ function dcp_geocode_via_nominatim( $address ) {
  * Uses the merchant's Google Maps API key:
  *   1. Geocode the customer's destination address (Google Geocoding API) —
  *      gives us lat/lng that ride along to the platform for the eventual
- *      Shiplogic SPX booking.
+ *      courier booking.
  *   2. Distance Matrix API (mode=driving) from the store's collection
  *      coordinates to the customer's coordinates.
  *   3. cost = distance_km × dcp_special_trip_cost_per_km, rounded to cents.
  * Results are transient-cached per destination for 15 minutes so repeated
  * checkout recalculations don't hammer the (paid) Google APIs.
  * ========================================================================== */
-
-/**
- * Returns array{amount: float, distance_km: float, lat: float|null, lng: float|null}
- * or false when a quote cannot be produced (no store coords, geocode failure,
- * Distance Matrix failure, zero distance).
- */
-function dcp_special_trip_quote( $package ) {
-    $api_key = dcp_google_maps_api_key();
-    $per_km  = dcp_special_trip_cost_per_km();
-    if ( $api_key === '' || $per_km <= 0 ) {
-        return false;
-    }
-
-    // Store origin — same coordinates used for Shiplogic collection.
-    $origin = dcp_geocode_collection_address_if_needed();
-    $manual_lat = get_option( 'dcp_collection_latitude_manual', '' );
-    $manual_lng = get_option( 'dcp_collection_longitude_manual', '' );
-    if ( $manual_lat !== '' && $manual_lng !== '' ) {
-        $origin = array( 'lat' => floatval( $manual_lat ), 'lng' => floatval( $manual_lng ) );
-    }
-    if ( ! is_array( $origin ) || empty( $origin['lat'] ) || empty( $origin['lng'] ) ) {
-        dcp_log( 'special_trip.no_origin', 'Store coordinates unavailable — cannot quote special trip', 'warning' );
-        return false;
-    }
-
-    // Destination address string from the shipping package.
-    $dest  = isset( $package['destination'] ) ? $package['destination'] : array();
-    $parts = array_filter( array_map( 'trim', array(
-        (string) ( $dest['address']   ?? '' ),
-        (string) ( $dest['address_2'] ?? '' ),
-        (string) ( $dest['city']      ?? '' ),
-        dcp_normalize_province( (string) ( $dest['state'] ?? '' ) ),
-        (string) ( $dest['postcode']  ?? '' ),
-        (string) ( $dest['country']   ?? 'ZA' ),
-    ) ) );
-    if ( count( $parts ) < 2 ) {
-        return false;
-    }
-    $dest_address = implode( ', ', $parts );
-
-    $cache_key = 'dcp_sttrip_' . md5( $origin['lat'] . ',' . $origin['lng'] . '|' . $dest_address . '|' . $per_km );
-    $cached    = get_transient( $cache_key );
-    if ( is_array( $cached ) ) {
-        return $cached;
-    }
-    // Negative cache: a recent failure is cached as the string 'fail' so a
-    // customer tabbing through checkout fields doesn't retrigger paid calls.
-    if ( $cached === 'fail' ) {
-        return false;
-    }
-
-    // 1. Geocode the destination for lat/lng (needed by the platform for
-    //    the Shiplogic SPX booking).
-    $coords = dcp_geocode_via_google( $dest_address, $api_key );
-
-    // 2. Driving distance.
-    $dm_dest = $coords ? ( $coords['lat'] . ',' . $coords['lng'] ) : $dest_address;
-    $url = add_query_arg(
-        array(
-            'origins'      => $origin['lat'] . ',' . $origin['lng'],
-            'destinations' => $dm_dest,
-            'mode'         => 'driving',
-            'region'       => 'za',
-            'key'          => $api_key,
-        ),
-        'https://maps.googleapis.com/maps/api/distancematrix/json'
-    );
-    $response = wp_remote_get( $url, array( 'timeout' => 8 ) );
-    $meters   = 0;
-    if ( ! is_wp_error( $response ) && wp_remote_retrieve_response_code( $response ) === 200 ) {
-        $data = json_decode( wp_remote_retrieve_body( $response ), true );
-        $el   = $data['rows'][0]['elements'][0] ?? null;
-        if ( is_array( $el ) && ( $el['status'] ?? '' ) === 'OK' && ! empty( $el['distance']['value'] ) ) {
-            $meters = intval( $el['distance']['value'] );
-        } else {
-            dcp_log( 'special_trip.dm_status', 'Distance Matrix element status: ' . ( is_array( $el ) ? ( $el['status'] ?? 'missing' ) : ( $data['status'] ?? 'bad response' ) ), 'warning' );
-        }
-    } else {
-        dcp_log( 'special_trip.dm_error', is_wp_error( $response ) ? $response->get_error_message() : 'HTTP ' . wp_remote_retrieve_response_code( $response ), 'warning' );
-    }
-
-    if ( $meters <= 0 ) {
-        set_transient( $cache_key, 'fail', 5 * MINUTE_IN_SECONDS );
-        return false;
-    }
-
-    $distance_km = round( $meters / 1000, 1 );
-    $amount      = round( $distance_km * $per_km, 2 );
-    if ( $amount <= 0 ) {
-        set_transient( $cache_key, 'fail', 5 * MINUTE_IN_SECONDS );
-        return false;
-    }
-
-    $quote = array(
-        'amount'      => $amount,
-        'distance_km' => $distance_km,
-        'lat'         => $coords ? $coords['lat'] : null,
-        'lng'         => $coords ? $coords['lng'] : null,
-    );
-    set_transient( $cache_key, $quote, 15 * MINUTE_IN_SECONDS );
-    return $quote;
-}
-
-/* ============================================================================
- * SHIPLOGIC HTTP CLIENT
- * ========================================================================== */
-
-function dcp_shiplogic_fetch_rates( $bearer, $payload ) {
-    $url     = DCP_SHIPLOGIC_BASE_URL . DCP_SHIPLOGIC_RATES_PATH;
-    $headers = array(
-        'Content-Type'  => 'application/json',
-        'Accept'        => 'application/json',
-        'Authorization' => 'Bearer ' . $bearer,
-    );
-    $body_str = wp_json_encode( $payload );
-    $started  = microtime( true );
-    $response = wp_remote_post( $url, array(
-        'timeout' => 30,
-        'headers' => $headers,
-        'body'    => $body_str,
-    ) );
-    $duration = (int) ( ( microtime( true ) - $started ) * 1000 );
-
-    if ( is_wp_error( $response ) ) {
-        dcp_log_http( 'shiplogic.rates.error', 'Transport error calling Shiplogic', 'error', array(
-            'method' => 'POST', 'url' => $url, 'request_headers' => $headers,
-            'request_body' => $body_str, 'duration_ms' => $duration,
-            'error' => $response->get_error_message(),
-        ) );
-        return $response;
-    }
-    $code        = wp_remote_retrieve_response_code( $response );
-    $body        = wp_remote_retrieve_body( $response );
-    $resp_hdrs   = wp_remote_retrieve_headers( $response );
-    $hdrs_array  = ( is_object( $resp_hdrs ) && method_exists( $resp_hdrs, 'getAll' ) ) ? $resp_hdrs->getAll() : (array) $resp_hdrs;
-
-    $level = ( $code >= 200 && $code < 300 ) ? 'info' : 'error';
-    dcp_log_http( 'shiplogic.rates', 'Direct Shiplogic call', $level, array(
-        'method' => 'POST', 'url' => $url, 'request_headers' => $headers,
-        'request_body' => $body_str, 'response_status' => $code,
-        'response_headers' => $hdrs_array, 'response_body' => $body,
-        'duration_ms' => $duration,
-    ) );
-
-    if ( $code < 200 || $code >= 300 ) {
-        return new WP_Error( 'shiplogic_http_' . $code, 'Shiplogic returned HTTP ' . $code . ': ' . substr( $body, 0, 500 ) );
-    }
-    $data = json_decode( $body, true );
-    if ( ! is_array( $data ) || empty( $data['rates'] ) || ! is_array( $data['rates'] ) ) {
-        return array();
-    }
-    return $data['rates'];
-}
 
 /**
  * Coerce a delivery-address array into the canonical snake_case shape used
@@ -1767,7 +1582,7 @@ function dcp_normalize_delivery_address_shape( $in ) {
  *   - DCP's submitted_* (submitted_length_cm, submitted_width_cm, …)
  *
  * Defaults conservatively (20×15×10cm, 1kg) for any missing field so a
- * minimally-populated parcel still yields a valid Shiplogic request.
+ * minimally-populated parcel still yields a valid rates request.
  */
 function dcp_normalize_parcels_shape( $parcels ) {
     if ( ! is_array( $parcels ) ) {
@@ -1788,26 +1603,25 @@ function dcp_normalize_parcels_shape( $parcels ) {
 }
 
 /**
- * PUBLIC: Fetch live courier rates with full fallback chain.
+ * PUBLIC: Fetch live courier rates, with a cache to fall back on.
  *
- * Tier 1: Integration service via api.delicatecourier.co.za (default, server-side
- *         geocoded, uses the tenant's Shiplogic token from platform DB).
- *         If circuit breaker is OPEN (recent failures), skip directly to T2.
+ * Tier 1: Integration service via api.delicatecourier.co.za (server-side
+ *         geocoded, priced by the Delicate Courier engine).
+ *         If the circuit breaker is OPEN (recent failures), skip to T2.
  *
- * Tier 2: Direct Shiplogic from this WordPress install. Requires merchant-side
- *         credentials (bearer, account, provider). Plugin geocodes the
- *         collection address itself via the geocoder block above so we don't
- *         re-hit the rates:null trap that previously plagued v2.1.x.
+ * Tier 2: Last-known-rate cache. 24-hour WP transient keyed on the full
+ *         destination address. Lets the customer still complete checkout
+ *         during a sustained outage, at the price we last quoted them.
  *
- * Tier 3: Last-known-rate cache. 24-hour WP transient keyed on the full
- *         destination address. Used only when both T1 and T2 fail. Lets
- *         the customer still complete checkout during a sustained outage.
- *
- * Every successful T1 or T2 fetch writes into the last-known-rate cache
- * so T3 has data to fall back on.
+ * There used to be a tier between these two that called Shiplogic directly
+ * from the merchant's own site, on the merchant's own credentials. The
+ * platform does not use that courier any more, so the fallback could only
+ * ever have quoted a price from a company that would not be collecting the
+ * parcel — a worse outcome than showing nothing, and one nobody would have
+ * noticed, because it looked like the plugin working.
  *
  * @param array $delivery Delivery address (the same shape build_delivery_address builds).
- * @param array $parcels  List of parcel arrays in the Shiplogic submitted_* shape.
+ * @param array $parcels  List of parcel arrays in the submitted_* shape.
  * @return array|WP_Error
  */
 function dcp_platform_fetch_rates( $delivery, $parcels ) {
@@ -1848,25 +1662,15 @@ function dcp_platform_fetch_rates( $delivery, $parcels ) {
         dcp_breaker_record_failure();
     } else {
         dcp_log( 'platform.rates.breaker_open',
-            'Circuit breaker OPEN — skipping platform, going direct to Shiplogic.',
+            'Circuit breaker OPEN — not calling the platform; using the last known rate.',
             'warning'
         );
     }
 
-    // ── Tier 2: Direct Shiplogic ─────────────────────────────────────────
-    $direct_rates = dcp_fetch_rates_direct_shiplogic( $delivery, $parcels );
-    if ( ! is_wp_error( $direct_rates ) && is_array( $direct_rates ) && ! empty( $direct_rates ) ) {
-        dcp_rate_cache_store( $delivery, $parcels, $direct_rates, 'shiplogic_direct' );
-        dcp_log( 'platform.rates.tier2_ok',
-            'Direct Shiplogic fallback returned rates.', 'warning'
-        );
-        return $direct_rates;
-    }
-
-    // ── Tier 3: Last-known-rate cache ────────────────────────────────────
+    // ── Tier 2: Last-known-rate cache ────────────────────────────────────
     $cached = dcp_rate_cache_fetch( $delivery, $parcels );
     if ( is_array( $cached ) && ! empty( $cached['rates'] ) ) {
-        dcp_log( 'platform.rates.tier3_ok',
+        dcp_log( 'platform.rates.tier2_ok',
             sprintf( 'Using last-known rate from %s, cached %d minutes ago.',
                 $cached['source'],
                 round( ( time() - $cached['cached_at'] ) / 60 )
@@ -1876,14 +1680,12 @@ function dcp_platform_fetch_rates( $delivery, $parcels ) {
         return $cached['rates'];
     }
 
-    // Total failure: return the most informative WP_Error we have.
+    // Nothing left to try. A shopper shown no delivery option will ask; a shopper shown a
+    // price from a courier we no longer use would be quoted something nobody will honour.
     if ( is_wp_error( $platform_rates ) ) {
         return $platform_rates;
     }
-    if ( is_wp_error( $direct_rates ) ) {
-        return $direct_rates;
-    }
-    return new WP_Error( 'dcp_no_rates', 'No rates available from platform, direct Shiplogic, or cache.' );
+    return new WP_Error( 'dcp_no_rates', 'No rates available from the platform or the cache.' );
 }
 
 /**
@@ -1952,8 +1754,8 @@ function dcp_platform_fetch_rates_inner( $store_id, $delivery, $parcels ) {
     $body_str = wp_json_encode( $payload );
     $started  = microtime( true );
     $response = wp_remote_post( $url, array(
-        // Aggressive timeout — we WANT to fall through to the direct
-        // Shiplogic path quickly during an outage. 8s is long enough for a
+        // Aggressive timeout — during an outage we want to reach the cached
+        // rate quickly. 8s is long enough for a
         // healthy platform to respond, short enough that customers don't
         // notice when we're falling back.
         'timeout' => 8,
@@ -2015,74 +1817,6 @@ function dcp_platform_fetch_rates_inner( $store_id, $delivery, $parcels ) {
     return $out;
 }
 
-/**
- * Tier 2: direct Shiplogic call when the platform is unreachable.
- * Uses merchant-stored Shiplogic credentials and locally-geocoded collection
- * coordinates. Returns the same normalised shape as the platform path.
- */
-function dcp_fetch_rates_direct_shiplogic( $delivery, $parcels ) {
-    $bearer   = dcp_shiplogic_bearer();
-    $account  = dcp_shiplogic_account_id();
-    $provider = dcp_shiplogic_provider_id();
-    if ( $bearer === '' || $account === '' || $provider === '' ) {
-        return new WP_Error( 'dcp_direct_no_creds',
-            'Direct Shiplogic fallback skipped: merchant credentials not configured. ' .
-            'Add Shiplogic Bearer Token, Account ID and Provider ID on the Delicate Courier settings page to enable fallback.'
-        );
-    }
-
-    $collection = dcp_collection_address(); // already includes geocoded lat/lng
-    if ( empty( $collection['lat'] ) || empty( $collection['lng'] ) ) {
-        return new WP_Error( 'dcp_direct_no_collection_coords',
-            'Direct Shiplogic fallback skipped: collection address could not be geocoded. ' .
-            'Check the collection address on the Delicate Courier settings page.'
-        );
-    }
-
-    // Construct the direct Shiplogic request payload. v2 of Shiplogic /v2/rates
-    // expects collection/delivery as flat objects with lat/lng embedded.
-    $payload = array(
-        'account_id'  => intval( $account ),
-        'provider_id' => intval( $provider ),
-        'collection_address' => array(
-            'type'           => 'business',
-            'company'        => (string) ( $collection['company']        ?? '' ),
-            'street_address' => (string) ( $collection['street_address'] ?? '' ),
-            'local_area'     => (string) ( $collection['local_area']     ?? '' ),
-            'city'           => (string) ( $collection['city']           ?? '' ),
-            'zone'           => (string) ( $collection['zone']           ?? '' ),
-            'code'           => (string) ( $collection['code']           ?? '' ),
-            'country'        => (string) ( $collection['country']        ?? 'ZA' ),
-            'lat'            => floatval( $collection['lat'] ),
-            'lng'            => floatval( $collection['lng'] ),
-        ),
-        'delivery_address' => array(
-            'type'           => 'residential',
-            'street_address' => (string) ( $delivery['street_address'] ?? '' ),
-            'local_area'     => (string) ( $delivery['local_area']     ?? '' ),
-            'city'           => (string) ( $delivery['city']           ?? '' ),
-            'zone'           => (string) ( $delivery['zone']           ?? '' ),
-            'code'           => (string) ( $delivery['code']           ?? '' ),
-            'country'        => (string) ( $delivery['country']        ?? 'ZA' ),
-        ),
-        'parcels' => $parcels, // already in Shiplogic submitted_* shape
-    );
-
-    $rates = dcp_shiplogic_fetch_rates( $bearer, $payload );
-    if ( is_wp_error( $rates ) ) {
-        return $rates;
-    }
-    if ( empty( $rates ) ) {
-        return array();
-    }
-
-    // Shiplogic returns rates in the shape we already normalise to —
-    // dcp_shiplogic_fetch_rates returns $data['rates'] directly. We
-    // just need to ensure each row has the legacy keys our caller
-    // expects. Shiplogic responses already match.
-    return $rates;
-}
-
 /* ============================================================================
  * CIRCUIT BREAKER  (rates path)
  * ============================================================================
@@ -2139,9 +1873,9 @@ function dcp_breaker_record_success() {
  * LAST-KNOWN-RATE CACHE
  * ============================================================================
  * 24-hour WP transient keyed on (delivery address + parcels signature). Every
- * successful platform or direct-Shiplogic call writes here; total-failure path
- * reads from here. This is the safety net that keeps checkout working during
- * a multi-hour outage when both platform AND direct Shiplogic are unreachable.
+ * successful platform call writes here; the total-failure path reads from
+ * here. This is the safety net that keeps checkout working during a
+ * multi-hour outage.
  *
  * NOT used as a regular cache: the regular sessionStorage cache in DTSC and
  * the WC transient in this plugin are the fast paths. This is purely the
@@ -2170,7 +1904,7 @@ function dcp_rate_cache_store( $delivery, $parcels, $rates, $source ) {
         dcp_rate_cache_key( $delivery, $parcels ),
         array(
             'rates'      => $rates,
-            'source'     => $source, // 'platform' | 'shiplogic_direct'
+            'source'     => $source, // 'platform' is the only writer now
             'cached_at'  => time(),
         ),
         DAY_IN_SECONDS
@@ -2629,8 +2363,8 @@ function dcp_platform_post_signed( $path, $payload, $options = array() ) {
 }
 
 /**
- * Best-effort wipe of cached Shiplogic rate transients. Called when the
- * settings page saves so a new token / endpoint takes effect immediately.
+ * Best-effort wipe of cached rate transients. Called when the
+ * settings page saves so a new endpoint takes effect immediately.
  */
 function dcp_clear_rate_cache() {
     global $wpdb;
@@ -2728,7 +2462,7 @@ function dcp_build_order_payload( $order ) {
     // ZA convention: WooCommerce has no native suburb field, merchants put
     // it in address_2. We still concatenate address_2 into $street above for
     // backward compatibility (older platform builds expect it there), and
-    // ALSO send it as a dedicated `suburb` so Shiplogic can populate
+    // ALSO send it as a dedicated `suburb` so the platform can populate
     // `local_area` accurately.
     $suburb = trim( (string) ( $shipping['address_2'] ?? '' ) );
     if ( $suburb === '' ) {
@@ -2910,12 +2644,11 @@ function dcp_build_order_payload( $order ) {
  *      courier shipment for a customer who's collecting in person.
  *   3. Chosen WooCommerce shipping method id — `local_pickup`, or any
  *      method whose id contains 'pickup' or 'collect', is treated as
- *      collection. Anything else (flat_rate, dcp_shiplogic_rate,
- *      free_shipping, …) is a delivery.
+ *      collection. Anything else (flat_rate, free_shipping, …) is a delivery.
  *   4. If the order has NO shipping method at all (digital-goods-only,
  *      pre-checkout draft, etc.) we default to 'delivery' to preserve
  *      the platform's pre-v2.4.2 behaviour — the platform-side guard
- *      will still skip Shiplogic booking only when this value is
+ *      will still skip the courier booking only when this value is
  *      exactly 'collect'.
  *
  * Returns a string: 'collect' | 'delivery' | 'special_trip'.
@@ -3148,7 +2881,7 @@ function dcp_curl_resolve_platform( $handle, $args, $url ) {
 function dcp_register_settings() {
     $options = array(
         // Secrets
-        'dcp_store_id', 'dcp_webhook_secret', 'dcp_shiplogic_bearer',
+        'dcp_store_id', 'dcp_webhook_secret',
         'dcp_google_maps_api_key',
         // Config
         'dcp_platform_base_url',
@@ -3158,13 +2891,6 @@ function dcp_register_settings() {
         // Toggles
         'dcp_enable_live_rates', 'dcp_auto_sync_orders', 'dcp_debug_logging',
     );
-    // Default-build only: Account ID + Provider ID are merchant-entered.
-    // Branded builds have these pre-baked as constants and never read the
-    // option, so we don't register them there.
-    if ( dcp_shiplogic_ids_are_editable() ) {
-        $options[] = 'dcp_shiplogic_account_id';
-        $options[] = 'dcp_shiplogic_provider_id';
-    }
     foreach ( $options as $opt ) {
         register_setting( 'dcp_settings', $opt );
     }
@@ -3184,18 +2910,10 @@ function dcp_render_settings_page() {
         // '+', '/' or '=' and makes every HMAC signature fail. Use trim()
         // only — wp_unslash undoes WP's automatic addslashes, and trim()
         // removes accidental leading/trailing whitespace from copy-paste.
-        $secrets = array( 'dcp_store_id', 'dcp_webhook_secret', 'dcp_shiplogic_bearer', 'dcp_google_geocoding_api_key', 'dcp_google_maps_api_key' );
+        $secrets = array( 'dcp_store_id', 'dcp_webhook_secret', 'dcp_google_geocoding_api_key', 'dcp_google_maps_api_key' );
         foreach ( $secrets as $name ) {
             $val = isset( $_POST[ $name ] ) ? trim( wp_unslash( $_POST[ $name ] ) ) : '';
             dcp_save_secret_option( $name, $val );
-        }
-        // Account ID + Provider ID are only saved for the default build —
-        // branded builds use constants and ignore the option entirely.
-        if ( dcp_shiplogic_ids_are_editable() ) {
-            foreach ( array( 'dcp_shiplogic_account_id', 'dcp_shiplogic_provider_id' ) as $name ) {
-                $val = isset( $_POST[ $name ] ) ? sanitize_text_field( wp_unslash( $_POST[ $name ] ) ) : '';
-                update_option( $name, $val );
-            }
         }
         // Platform endpoint URL — plain config, sanitize as URL, allow blank
         // (blank means "use the build-time default constant").
@@ -3262,7 +2980,7 @@ function dcp_render_settings_page() {
         // will retry.
         dcp_geocode_collection_address_if_needed();
 
-        // Bust the rate cache so a new Shiplogic token / account takes effect immediately.
+        // Bust the rate cache so a new endpoint or address takes effect immediately.
         dcp_clear_rate_cache();
         echo '<div class="notice notice-success is-dismissible"><p>Settings saved.</p></div>';
     }
@@ -3277,24 +2995,13 @@ function dcp_render_settings_page() {
             <?php wp_nonce_field( 'dcp_save_settings' ); ?>
 
             <h2 class="title">Platform credentials</h2>
-            <p>These three values come from the Store record in the Delicate Courier admin portal. The Shiplogic token is from your Shiplogic dashboard.</p>
+            <p>Both values come from the Store record in the Delicate Courier admin portal.</p>
             <table class="form-table" role="presentation">
                 <tr><th><label for="dcp_store_id">Store ID</label></th>
                     <td><input name="dcp_store_id" id="dcp_store_id" type="text" class="regular-text" value="<?php echo esc_attr( dcp_store_id() ); ?>" required></td></tr>
                 <tr><th><label for="dcp_webhook_secret">Webhook Secret</label></th>
                     <td><input name="dcp_webhook_secret" id="dcp_webhook_secret" type="password" class="regular-text" value="<?php echo esc_attr( dcp_webhook_secret() ); ?>" autocomplete="off" required>
                         <p class="description">Used to HMAC-sign every order pushed to the platform.</p></td></tr>
-                <tr><th><label for="dcp_shiplogic_bearer">Shiplogic Bearer Token <em>(optional)</em></label></th>
-                    <td><input name="dcp_shiplogic_bearer" id="dcp_shiplogic_bearer" type="password" class="regular-text" value="<?php echo esc_attr( dcp_shiplogic_bearer() ); ?>" autocomplete="off">
-                        <p class="description"><strong>Not required for normal operation.</strong> Live rates at checkout are fetched through the Delicate Courier Platform using the token stored on your tenant. Only fill this in if you want the "Test direct Shiplogic call" diagnostic button to work.</p></td></tr>
-                <?php if ( dcp_shiplogic_ids_are_editable() ) : ?>
-                <tr><th><label for="dcp_shiplogic_account_id">Shiplogic Account ID <em>(optional)</em></label></th>
-                    <td><input name="dcp_shiplogic_account_id" id="dcp_shiplogic_account_id" type="text" class="regular-text" value="<?php echo esc_attr( dcp_shiplogic_account_id() ); ?>">
-                        <p class="description">Diagnostic only. The platform supplies the correct account ID for live rates automatically.</p></td></tr>
-                <tr><th><label for="dcp_shiplogic_provider_id">Shiplogic Provider ID <em>(optional)</em></label></th>
-                    <td><input name="dcp_shiplogic_provider_id" id="dcp_shiplogic_provider_id" type="text" class="regular-text" value="<?php echo esc_attr( dcp_shiplogic_provider_id() ); ?>">
-                        <p class="description">Diagnostic only. The platform supplies the correct provider ID for live rates automatically.</p></td></tr>
-                <?php endif; ?>
                 <tr><th><label for="dcp_platform_base_url">Orders &amp; Rates Endpoint URL <em>(optional)</em></label></th>
                     <td><input name="dcp_platform_base_url" id="dcp_platform_base_url" type="url" class="regular-text" value="<?php echo esc_attr( get_option( 'dcp_platform_base_url', '' ) ); ?>" placeholder="<?php echo esc_attr( DCP_PLATFORM_BASE_URL ); ?>">
                         <p class="description">Where orders, checkout rates and waybills are sent. Leave blank to use the default (<code><?php echo esc_html( DCP_PLATFORM_BASE_URL ); ?></code>). Only change this if instructed by your platform administrator &mdash; e.g. to point at staging, or as a fallback while DNS for the custom domain propagates.</p></td></tr>
@@ -3307,7 +3014,7 @@ function dcp_render_settings_page() {
             </table>
 
             <h2 class="title">Geocoding <em>(collection address)</em></h2>
-            <p class="description" style="max-width:60em">Shiplogic requires latitude/longitude on the collection address to return rates. This plugin geocodes your store address automatically &mdash; Google Geocoding API if you provide a key, falling back to free OpenStreetMap (Nominatim) otherwise.</p>
+            <p class="description" style="max-width:60em">Rates are measured from this point, so it needs latitude and longitude. This plugin geocodes your store address automatically &mdash; Google Geocoding API if you provide a key, falling back to free OpenStreetMap (Nominatim) otherwise.</p>
             <table class="form-table" role="presentation">
                 <tr><th><label for="dcp_google_geocoding_api_key">Google Geocoding API key <em>(optional)</em></label></th>
                     <td><input name="dcp_google_geocoding_api_key" id="dcp_google_geocoding_api_key" type="password" class="regular-text" value="<?php echo esc_attr( get_option( 'dcp_google_geocoding_api_key', '' ) ); ?>" autocomplete="off" placeholder="<?php echo esc_attr( get_option( 'dcp_google_geocoding_api_key', '' ) ? '(stored)' : 'Leave blank to use free OpenStreetMap Nominatim' ); ?>">
@@ -3341,7 +3048,7 @@ function dcp_render_settings_page() {
                         <input name="dcp_collection_latitude_manual"  id="dcp_collection_latitude_manual"  type="text" class="small-text" value="<?php echo esc_attr( $manual_lat ); ?>" placeholder="e.g. -25.7479">
                         <input name="dcp_collection_longitude_manual" id="dcp_collection_longitude_manual" type="text" class="small-text" value="<?php echo esc_attr( $manual_lng ); ?>" placeholder="e.g. 28.2293">
                         <p class="description">
-                            Optional. If filled in, these win over the geocoded values above and are sent to Shiplogic as-is.
+                            Optional. If filled in, these win over the geocoded values above and are used as-is.
                             Use this when the geocoder can't resolve your address, or when you need to pin a known-good location
                             (e.g. inside a shopping centre where the street address geocodes to the wrong building).
                             Get coordinates by right-clicking your store in Google Maps and choosing the "What's here" entry &mdash;
@@ -3355,12 +3062,12 @@ function dcp_render_settings_page() {
                         $effective = dcp_collection_address();
                         if ( ! empty( $effective['lat'] ) && ! empty( $effective['lng'] ) ) {
                             $source = $manual_lat !== '' && $manual_lng !== '' ? 'manual override' : 'geocoded';
-                            echo '<p><strong>Currently sent to Shiplogic:</strong> <code>'
+                            echo '<p><strong>Collecting from:</strong> <code>'
                                 . esc_html( $effective['lat'] ) . ', ' . esc_html( $effective['lng'] )
                                 . '</code> <em>(' . esc_html( $source ) . ')</em></p>';
                         } else {
                             echo '<p style="color:#a00"><strong>⚠ No coordinates currently configured.</strong> '
-                                . 'Shiplogic will return empty rates until either the geocoder succeeds or you enter coordinates manually above.</p>';
+                                . 'Checkout will show no delivery option until either the geocoder succeeds or you enter coordinates manually above.</p>';
                         }
                         ?>
                     </td></tr>
@@ -3396,10 +3103,6 @@ function dcp_render_settings_page() {
         <p class="description">These values are derived from this plugin build or from your WooCommerce store address. To change them, override with a small code snippet using the documented filters, or ask your platform administrator for a custom-branded plugin build.</p>
         <?php $addr = dcp_collection_address(); ?>
         <table class="form-table" role="presentation">
-            <?php if ( ! dcp_shiplogic_ids_are_editable() ) : ?>
-            <tr><th>Shiplogic Account ID</th><td><code><?php echo esc_html( dcp_shiplogic_account_id() ?: '(not set)' ); ?></code></td></tr>
-            <tr><th>Shiplogic Provider ID</th><td><code><?php echo esc_html( dcp_shiplogic_provider_id() ?: '(not set)' ); ?></code></td></tr>
-            <?php endif; ?>
             <tr><th>Service Level Code</th><td><code><?php echo esc_html( dcp_service_level_code() ); ?></code></td></tr>
             <tr><th>Collection address</th><td>
                 <code><?php echo esc_html( trim( ($addr['company'] ?? '') . ', ' . ($addr['street_address'] ?? '') . ', ' . ($addr['city'] ?? '') . ' ' . ($addr['code'] ?? '') . ', ' . ($addr['country'] ?? ''), ', ' ) ); ?></code>
@@ -3415,11 +3118,9 @@ function dcp_render_settings_page() {
             <button type="button" class="button" id="dcp-test-health">Test platform connection</button>
             <button type="button" class="button" id="dcp-test-order">Send signed test order</button>
             <button type="button" class="button button-primary" id="dcp-test-platform-rates">Test live rates (via platform)</button>
-            <button type="button" class="button" id="dcp-test-rates">Test direct Shiplogic call</button>
         </p>
         <p class="description">
-            <strong>Test live rates (via platform)</strong> is what your customers' checkout actually uses — the platform geocodes addresses and uses your tenant's Shiplogic token.
-            <strong>Test direct Shiplogic call</strong> bypasses the platform and is only useful for low-level debugging; it requires the legacy Shiplogic token field to be filled in.
+            <strong>Test live rates (via platform)</strong> is what your customers' checkout actually uses.
         </p>
         <pre id="dcp-test-output" style="background:#1d2327;color:#e3e7ee;padding:12px;border-radius:4px;min-height:80px;white-space:pre-wrap;"></pre>
 
@@ -3544,7 +3245,6 @@ function dcp_render_settings_page() {
         document.getElementById('dcp-test-health').addEventListener('click', function(){ run('dcp_test_platform_health', 'Pinging platform'); });
         document.getElementById('dcp-test-order').addEventListener('click', function(){ run('dcp_test_platform_order', 'Sending signed test order'); });
         document.getElementById('dcp-test-platform-rates').addEventListener('click', function(){ run('dcp_test_platform_rates', 'Requesting live rates via platform'); });
-        document.getElementById('dcp-test-rates').addEventListener('click', function(){ run('dcp_test_shiplogic_rates', 'Requesting direct Shiplogic rates'); });
 
         var outboxBtn = document.getElementById('dcp-outbox-process-now');
         if (outboxBtn) {
@@ -3797,45 +3497,6 @@ function dcp_ajax_test_platform_rates() {
     wp_send_json( array( 'success' => true, 'status' => 200, 'body' => array( 'rates' => $rates ) ) );
 }
 
-function dcp_ajax_test_shiplogic_rates() {
-    dcp_check_ajax();
-    $bearer = dcp_shiplogic_bearer();
-    if ( $bearer === '' ) {
-        wp_send_json( array( 'success' => false, 'status' => 0, 'body' => array( 'message' => 'Shiplogic Bearer Token is required first.' ) ) );
-    }
-    $payload = array(
-        'account_id'         => is_numeric( dcp_shiplogic_account_id() ) ? intval( dcp_shiplogic_account_id() ) : dcp_shiplogic_account_id(),
-        'provider_id'        => is_numeric( dcp_shiplogic_provider_id() ) ? intval( dcp_shiplogic_provider_id() ) : dcp_shiplogic_provider_id(),
-        'service_level_code' => dcp_service_level_code(),
-        'collection_address' => dcp_collection_address(),
-        'delivery_address'   => array(
-            'type'           => 'residential',
-            'company'        => null,
-            'street_address' => '1 Test Street',
-            'local_area'     => '',
-            'city'           => 'Johannesburg',
-            'zone'           => 'Gauteng',
-            'code'           => '2000',
-            'country'        => 'ZA',
-            'lat'            => null,
-            'lng'            => null,
-            'contact'        => array( 'name' => 'Test', 'mobile_number' => null, 'email' => null ),
-        ),
-        'parcels' => array( array(
-            'parcel_description'  => 'Test Parcel',
-            'submitted_length_cm' => 20,
-            'submitted_width_cm'  => 15,
-            'submitted_height_cm' => 10,
-            'submitted_weight_kg' => 1,
-        ) ),
-    );
-    $rates = dcp_shiplogic_fetch_rates( $bearer, $payload );
-    if ( is_wp_error( $rates ) ) {
-        wp_send_json( array( 'success' => false, 'status' => 0, 'body' => array( 'message' => $rates->get_error_message() ) ) );
-    }
-    wp_send_json( array( 'success' => true, 'status' => 200, 'body' => array( 'rates' => $rates ) ) );
-}
-
 function dcp_ajax_clear_debug_logs() {
     dcp_check_ajax();
     update_option( 'dcp_debug_logs', array(), false );
@@ -3899,7 +3560,7 @@ function dcp_register_order_meta_box() {
  * checkouts) use the standard shipping_total. This helper unifies both.
  *
  * Returns the NET amount (excluding tax) so that the figure is directly
- * comparable to `_dcp_courier_rate`, which is also the net Shiplogic rate.
+ * comparable to `_dcp_courier_rate`, which is also the net courier rate.
  * Comparing like-for-like net values keeps the "Markup Margin" calculation
  * accurate — VAT on the fee is collected for SARS, not retained as margin.
  *
@@ -4013,7 +3674,7 @@ function dcp_get_checkout_data( $order ) {
  *      only rendered when the corresponding meta exists.
  *   2. Shipment & Tracking, read straight from `_dcp_*` order meta that the
  *      Delicate Couriers platform writes back via the WooCommerce REST API
- *      after every shipment booking and every Shiplogic status webhook. When
+ *      after every shipment booking and every courier status webhook. When
  *      no tracking has been pushed yet (e.g. the order is still in the queue)
  *      the panel shows the documented "Awaiting waybill" empty state.
  */
@@ -4043,7 +3704,7 @@ function dcp_render_order_meta_box( $post_or_order ) {
     //     shipping lines) so it always matches what the customer was actually
     //     charged regardless of whether shipping was attached as a WC shipping
     //     line item or as a "Delivery" cart fee (DTSC). Courier rate is what
-    //     we paid Shiplogic; margin is the difference. ---
+    //     we paid the courier; margin is the difference. ---
     $customer_paid = dcp_get_customer_paid_shipping( $order );
     $rate_float    = is_numeric( $courier_rate ) ? (float) $courier_rate : null;
     $margin        = ( $rate_float !== null ) ? ( $customer_paid - $rate_float ) : null;
@@ -4159,7 +3820,7 @@ function dcp_render_order_meta_box( $post_or_order ) {
         <p style="margin:.25em 0;"><strong>Customer Ref:</strong> #<?php echo esc_html( $order->get_order_number() ); ?></p>
         <p style="margin:.25em 0;"><strong>Customer Paid (Shipping):</strong> <?php echo esc_html( $fmt_money( $customer_paid ) ); ?></p>
         <?php if ( $rate_float !== null ) : ?>
-            <p style="margin:.25em 0;"><strong>Courier Rate (Shiplogic):</strong> <?php echo esc_html( $fmt_money( $rate_float ) ); ?></p>
+            <p style="margin:.25em 0;"><strong>Courier Rate:</strong> <?php echo esc_html( $fmt_money( $rate_float ) ); ?></p>
             <p style="margin:.25em 0;<?php echo ( $margin < 0 ) ? 'color:#b00020;' : ''; ?>"><strong>Markup Margin:</strong> <?php echo esc_html( $fmt_money( $margin ) ); ?></p>
         <?php endif; ?>
 
