@@ -11,7 +11,7 @@ namespace DelicateCouriers.Tests.Orders;
 /// <summary>
 /// Locks the special-trip (plugin v2.7.0+) booking rules in
 /// OrderToShipmentMapper:
-/// - FulfillmentType "special_trip" books as Shiplogic service level SPX
+/// - FulfillmentType "special_trip" books as the engine service level on_demand
 /// - the customer-quoted amount rides along as declared_value
 /// - plugin-geocoded customer coordinates are attached to the delivery
 ///   address (and the platform-side geocoder is skipped)
@@ -51,6 +51,8 @@ public class SpecialTripMappingTests
         StoreID = 1,
         TenantID = 1,
         StoreName = "Test Store",
+        EngineAccountRef = "TST001",
+        EnginePackageTypeId = "11111111-1111-4111-8111-111111111111",
         DefaultServiceLevel = "ECO",
         CollectionAddressLine1 = "1 Main Rd",
         CollectionCity = "Pretoria",
@@ -60,8 +62,6 @@ public class SpecialTripMappingTests
         CollectionContactPhone = "+27110000000",
         CollectionLatitude = -25.75,
         CollectionLongitude = 28.19,
-        ShiplogicProviderId = 35,
-        ShiplogicAccountId = 624164,
     };
 
     private static Order CreateOrder() => new()
@@ -84,7 +84,7 @@ public class SpecialTripMappingTests
     };
 
     [Fact]
-    public async Task SpecialTrip_Books_As_SPX_With_QuotedAmount_As_DeclaredValue()
+    public async Task SpecialTrip_Books_On_Demand_With_QuotedAmount_As_DeclaredValue()
     {
         var order = CreateOrder();
         order.FulfillmentType = "special_trip";
@@ -94,7 +94,7 @@ public class SpecialTripMappingTests
         var (mapper, _) = CreateMapper();
         var request = await mapper.MapOrderToShipmentAsync(order, CreateStore());
 
-        Assert.Equal("SPX", request.ServiceLevelCode);
+        Assert.Equal("on_demand", request.ServiceLevelCode);
         Assert.Equal(486.20m, request.DeclaredValue);
     }
 
@@ -125,7 +125,7 @@ public class SpecialTripMappingTests
         var (mapper, geocoder) = CreateMapper();
         var request = await mapper.MapOrderToShipmentAsync(order, CreateStore());
 
-        Assert.Equal("SPX", request.ServiceLevelCode);
+        Assert.Equal("on_demand", request.ServiceLevelCode);
         Assert.Equal(1, geocoder.Calls);
     }
 
@@ -161,9 +161,9 @@ public class SpecialTripMappingTests
     }
 
     [Fact]
-    public async Task SpecialTrip_Without_Postal_Code_Still_Maps_As_SPX()
+    public async Task SpecialTrip_Without_Postal_Code_Still_Maps_As_On_Demand()
     {
-        // Special trips book as SPX ad-hoc trips routed by the customer
+        // Special trips book on demand, routed by the customer
         // lat/lng captured at checkout — a postal code is not required.
         var order = CreateOrder();
         order.FulfillmentType = "special_trip";
@@ -175,7 +175,7 @@ public class SpecialTripMappingTests
         var (mapper, _) = CreateMapper();
         var request = await mapper.MapOrderToShipmentAsync(order, CreateStore());
 
-        Assert.Equal("SPX", request.ServiceLevelCode);
+        Assert.Equal("on_demand", request.ServiceLevelCode);
         Assert.Equal(250m, request.DeclaredValue);
     }
 
@@ -188,7 +188,7 @@ public class SpecialTripMappingTests
         var (mapper, geocoder) = CreateMapper();
         var request = await mapper.MapOrderToShipmentAsync(order, CreateStore());
 
-        Assert.NotEqual("SPX", request.ServiceLevelCode);
+        Assert.NotEqual("on_demand", request.ServiceLevelCode);
         Assert.Null(request.DeclaredValue);
         Assert.Equal(1, geocoder.Calls);
     }

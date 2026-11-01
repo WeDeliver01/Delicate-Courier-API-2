@@ -4,7 +4,7 @@ using DelicateCouriers.ApiService.Data;
 using DelicateCouriers.ApiService.Features.Shopify.Carriers;
 using DelicateCouriers.ApiService.Features.Shopify.DTOs;
 using DelicateCouriers.ApiService.Infrastructure.Geocoding;
-using DelicateCouriers.Features.Shiplogic.DTOs;
+using DelicateCouriers.ApiService.Features.Delivery;
 using DelicateCouriers.Domain.Entities;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -45,13 +45,13 @@ public class ShopifyRateCallbackTests
     {
         await using var ctx = NewDbContext();
         SeedShopifyStore(ctx);
-        var controller = NewController(ctx, out var shiplogic);
+        var controller = NewController(ctx, out var delivery);
 
         var result = await Post(controller, StoreId, rawBody: "{ this is not valid json ");
 
         AssertEmptyRates(result);
         // Malformed body must short-circuit BEFORE any upstream call.
-        Assert.False(shiplogic.WasCalled);
+        Assert.False(delivery.WasCalled);
     }
 
     [Fact]
@@ -59,12 +59,12 @@ public class ShopifyRateCallbackTests
     {
         await using var ctx = NewDbContext();
         SeedShopifyStore(ctx);
-        var controller = NewController(ctx, out var shiplogic);
+        var controller = NewController(ctx, out var delivery);
 
         var result = await Post(controller, StoreId, rawBody: "{\"not_a_rate\":true}");
 
         AssertEmptyRates(result);
-        Assert.False(shiplogic.WasCalled);
+        Assert.False(delivery.WasCalled);
     }
 
     [Fact]
@@ -86,24 +86,11 @@ public class ShopifyRateCallbackTests
     {
         await using var ctx = NewDbContext();
         SeedShopifyStore(ctx);
-        var controller = NewController(ctx, out var shiplogic);
+        var controller = NewController(ctx, out var delivery);
 
-        shiplogic.RateResponse = new RateResponseDto
-        {
-            Rates = new List<ShippingRateDto>
-            {
-                new ShippingRateDto
-                {
-                    Rate = 95.50m,
-                    ServiceLevel = new ServiceLevelDto
-                    {
-                        Code = "ECO",
-                        Name = "Economy",
-                        Description = "2-3 day delivery"
-                    }
-                }
-            }
-        };
+        // The engine returns a price; the words around it are the store's. 9550 cents is the
+        // same R95.50 this test has always asserted on.
+        delivery.Quote = new DeliveryQuote { TotalCents = 9550, ServiceLevelCode = "standard" };
 
         var result = await Post(controller, StoreId, ValidRateBody(itemPriceJson));
 
@@ -117,7 +104,7 @@ public class ShopifyRateCallbackTests
         Assert.Equal("9550", rate.TotalPrice);
         Assert.Equal("ZAR", rate.Currency);
 
-        Assert.True(shiplogic.WasCalled);
+        Assert.True(delivery.WasCalled);
     }
 
     [Fact]
@@ -137,12 +124,15 @@ public class ShopifyRateCallbackTests
     }
 
     [Fact]
-    public async Task Zero_rates_from_shiplogic_returns_200_with_empty_rates()
+    public async Task An_engine_that_cannot_price_returns_200_with_empty_rates()
     {
+        // Shopify is waiting on this call. No rate is a poor answer; an error is no answer at
+        // all, and the customer is shown nothing at checkout. The store under test has no
+        // special-trip fallback configured, so the honest result is an empty list and a 200.
         await using var ctx = NewDbContext();
         SeedShopifyStore(ctx);
-        var controller = NewController(ctx, out var shiplogic);
-        shiplogic.RateResponse = new RateResponseDto { Rates = new List<ShippingRateDto>() };
+        var controller = NewController(ctx, out var delivery);
+        delivery.QuoteThrows = new InvalidOperationException("engine unreachable");
 
         var result = await Post(controller, StoreId, ValidRateBody("1000"));
 
@@ -190,12 +180,12 @@ public class ShopifyRateCallbackTests
         return await controller.GetRates(storeId);
     }
 
-    private static ShopifyRatesController NewController(AppDbContext ctx, out FakeShiplogicService shiplogic)
+    private static ShopifyRatesController NewController(AppDbContext ctx, out FakeDeliveryService delivery)
     {
-        shiplogic = new FakeShiplogicService();
+        delivery = new FakeDeliveryService();
         var geocoder = new FakeGeocoder(new GeocodeResult(-26.1, 28.0, "fake"));
         return new ShopifyRatesController(
-            ctx, shiplogic, geocoder,
+            ctx, delivery, geocoder,
             new DelicateCouriers.Features.Shipping.SpecialTrip.SpecialTripQuoter(
                 new FakeDistanceServiceFactory(),
                 NullLogger<DelicateCouriers.Features.Shipping.SpecialTrip.SpecialTripQuoter>.Instance),
@@ -204,7 +194,7 @@ public class ShopifyRateCallbackTests
 
     /// <summary>
     /// Distance factory whose service never finds a route — keeps the
-    /// existing rate-callback tests on the plain Shiplogic path (stores
+    /// existing rate-callback tests on the plain engine-quoted path (stores
     /// under test have no Google key configured anyway).
     /// </summary>
     private sealed class FakeDistanceServiceFactory
@@ -239,7 +229,6 @@ public class ShopifyRateCallbackTests
             TenantID = TenantId,
             TenantName = "Rate Tenant",
             TenantAPIKey = "key",
-            ShiplogicBearerToken = "tenant-bearer-token",
             CreatedBy = "tests",
         });
         ctx.Stores.Add(new Store
@@ -257,6 +246,18 @@ public class ShopifyRateCallbackTests
             CollectionCountry = "ZA",
             CollectionLatitude = -33.92,
             CollectionLongitude = 18.42,
+            EngineAccountRef = "SHP001",
+            EnginePackageTypeId = "11111111-1111-4111-8111-111111111111",
+            ServiceLevels = new List<StoreServiceLevel>
+            {
+                new()
+                {
+                    CheckoutCode = "ECO",
+                    CheckoutLabel = "Economy",
+                    EngineCode = "standard",
+                    EstimatedDeliveryDays = 3,
+                },
+            },
             CreatedBy = "tests",
         });
         ctx.SaveChanges();

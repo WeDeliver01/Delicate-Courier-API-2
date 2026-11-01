@@ -5,7 +5,7 @@ using DelicateCouriers.ApiService.Features.Packaging;
 using DelicateCouriers.ApiService.Features.Shipments;
 using DelicateCouriers.ApiService.Features.WooCommerce;
 using DelicateCouriers.Domain.Entities;
-using DelicateCouriers.Features.Shiplogic;
+using DelicateCouriers.ApiService.Features.Delivery;
 using DelicateCouriers.Tests.Shopify;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -98,14 +98,14 @@ public class SpecialTripManualBookingTests
         var woo = new FakeWooCommerceService();
         var events = new FakeSystemEventLogger();
         var email = new RecordingEmailSender();
-        var shiplogic = new FakeShiplogicService(); // CreateShipmentAsync throws — proves no booking attempt
+        var delivery = new FakeDeliveryService(); // BookAsync throws — proves no booking attempt
         var mapper = new OrderToShipmentMapper(
             new PackageMappingService(ctx, NullLogger<PackageMappingService>.Instance),
             new FakeGeocoder(new DelicateCouriers.ApiService.Infrastructure.Geocoding.GeocodeResult(-26.1, 28.0, "fake")),
             NullLogger<OrderToShipmentMapper>.Instance);
         var svc = new ShipmentOrchestrationService(
             ctx,
-            shiplogic,
+            delivery,
             NullLogger<ShipmentOrchestrationService>.Instance,
             new LabelService(ctx, NullLogger<LabelService>.Instance),
             mapper,

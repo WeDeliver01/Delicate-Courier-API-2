@@ -197,9 +197,9 @@ public class ShopifyTrackingWriteback
     }
 
     /// <summary>
-    /// Build the customer-facing tracking URL. Uses the same Shiplogic
-    /// public-tracking format the WooCommerce write-back uses, so both
-    /// storefronts deep-link to the same page.
+    /// Build the customer-facing tracking URL. Uses the same public-tracking
+    /// format the WooCommerce write-back uses, so both storefronts deep-link
+    /// to the same page.
     /// </summary>
     private static string BuildTrackingUrl(string trackingNumber)
     {

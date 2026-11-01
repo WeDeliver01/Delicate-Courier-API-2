@@ -41,6 +41,8 @@ public class OrderToShipmentMapperTimingTests
         StoreID = 1,
         TenantID = 1,
         StoreName = "Test Store",
+        EngineAccountRef = "TST001",
+        EnginePackageTypeId = "11111111-1111-4111-8111-111111111111",
         CollectionAddressLine1 = "1 Main Rd",
         CollectionCity = "Pretoria",
         CollectionPostalCode = "0181",
@@ -49,8 +51,6 @@ public class OrderToShipmentMapperTimingTests
         CollectionContactPhone = "+27110000000",
         CollectionLatitude = -25.75,
         CollectionLongitude = 28.19,
-        ShiplogicProviderId = 35,
-        ShiplogicAccountId = 624164,
     };
 
     private static Order CreateOrder(string? deliveryTime) => new()

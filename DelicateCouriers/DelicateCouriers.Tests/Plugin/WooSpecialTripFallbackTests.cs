@@ -33,7 +33,7 @@ public class WooSpecialTripFallbackTests
     // ---------------------------------------------------------------
 
     [Fact]
-    public async Task Rates_endpoint_offers_special_trip_when_shiplogic_has_no_rates()
+    public async Task Rates_endpoint_offers_special_trip_when_the_engine_has_no_rates()
     {
         await using var ctx = NewDbContext();
         SeedStore(ctx, costPerKm: 7m, minFee: 150m, maxKm: 200m, googleKey: "merchant-key");
@@ -305,12 +305,12 @@ public class WooSpecialTripFallbackTests
 
     private static GetRatesController NewRatesController(AppDbContext ctx, decimal? distanceKm)
     {
-        var shiplogic = new FakeShiplogicService(); // canned response: no rates
+        var delivery = new FakeDeliveryService(); // canned response: no rates
         var quoter = new SpecialTripQuoter(
             new FixedDistanceServiceFactory(distanceKm),
             NullLogger<SpecialTripQuoter>.Instance);
         return new GetRatesController(
-            ctx, shiplogic,
+            ctx, delivery,
             new FakeGeocoder(new DelicateCouriers.ApiService.Infrastructure.Geocoding.GeocodeResult(-26.1, 28.0, "fake")),
             quoter,
             NullLogger<GetRatesController>.Instance)
@@ -370,7 +370,6 @@ public class WooSpecialTripFallbackTests
             TenantID = TenantId,
             TenantName = "Test Tenant",
             TenantAPIKey = "test-api-key",
-            ShiplogicBearerToken = "test-bearer-token",
             CreatedBy = "tests",
         });
         ctx.Stores.Add(new Store
@@ -385,6 +384,8 @@ public class WooSpecialTripFallbackTests
             WebhookSecret = "test-webhook-secret-32-chars-min!!",
             IsActive = true,
             DefaultServiceLevel = "STD",
+            EngineAccountRef = "WST001",
+            EnginePackageTypeId = "11111111-1111-4111-8111-111111111111",
             CollectionAddressLine1 = "1 Bakery Lane",
             CollectionCity = "Pretoria",
             CollectionProvince = "Gauteng",

@@ -1,3 +1,4 @@
+using System.Globalization;
 using DelicateCouriers.ApiService.Features.Delivery;
 using DelicateCouriers.ApiService.Data;
 using DelicateCouriers.ApiService.Features.Orders;
@@ -734,8 +735,12 @@ public class ShipmentOrchestrationService
             return ShipmentCreationResult.Failure(resultMsg);
         }
 
-        var km = order.SpecialTripDistanceKm?.ToString("0.#") ?? "?";
-        var amount = order.SpecialTripQuotedAmount?.ToString("0.00") ?? "?";
+        // Invariant, not the ambient culture. This machine is en-ZA, where the decimal
+        // separator is a comma, so the same order reads "R702,80" here and "R702.80" on the
+        // server — an amount whose shape depends on where the process happens to be running
+        // is one nobody can quote back with confidence.
+        var km = order.SpecialTripDistanceKm?.ToString("0.#", CultureInfo.InvariantCulture) ?? "?";
+        var amount = order.SpecialTripQuotedAmount?.ToString("0.00", CultureInfo.InvariantCulture) ?? "?";
         var deliveryDate = order.RequestedDeliveryDate?.ToString("ddd, dd MMM yyyy") ?? "not specified";
         var deliveryTime = string.IsNullOrWhiteSpace(order.RequestedDeliveryTime) ? "" : $" {order.RequestedDeliveryTime}";
         var address = string.Join(", ", new[]

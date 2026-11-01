@@ -50,7 +50,13 @@ public class ShopifyTrackingWritebackTests
         Assert.Contains($"\"fulfillment_order_id\":{FulfillmentOrderId}", post);
         // Tracking number and the storefront-meta tracking URL are present.
         Assert.Contains($"\"number\":\"{TrackingNumber}\"", post);
-        var expectedUrl = $"https://tracking.shiplogic.com/?tracking_reference={TrackingNumber}";
+        // Built from the one format both storefronts share, rather than spelled out again
+        // here: a tracking link that disagrees between Shopify and WooCommerce is a customer
+        // on a page that does not know their parcel.
+        var expectedUrl = string.Format(
+            System.Globalization.CultureInfo.InvariantCulture,
+            DelicateCouriers.ApiService.Features.Shipments.ShipmentStorefrontMeta.TrackingUrlFormat,
+            Uri.EscapeDataString(TrackingNumber));
         Assert.Contains(expectedUrl, post);
     }
 

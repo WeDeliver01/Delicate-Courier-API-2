@@ -265,11 +265,16 @@ public class GetRatesController : ControllerBase
             var priced = quoted.Where(q => q.Rate is not null).Select(q => q.Rate!).ToList();
             if (priced.Count == 0)
             {
-                // Nothing priced at all is the Engine being unreachable, not a shopper typing
-                // an address we cannot resolve, so it keeps the existing contract rather than
-                // falling through to the special-trip path as if there were simply no rates.
+                // Loudly, but not fatally. A merchant who has configured a special trip has
+                // asked for exactly this case to be covered by it, and throwing here skips
+                // that fallback and hands their shopper a 500 instead of the rate they
+                // arranged. The reason still reaches the log with the store on it.
                 var first = quoted.Select(q => q.Error).FirstOrDefault(e => e is not null);
-                if (first is not null) throw first;
+                _logger.LogError(
+                    first,
+                    "Engine priced none of the {Offered} service levels for StoreID {StoreID}; "
+                    + "falling back to special trip if one is configured",
+                    levels.Count, request.StoreId);
             }
 
             var ratesResponse = new RateResponseDto { Rates = priced };

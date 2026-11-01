@@ -1,62 +1,62 @@
+using DelicateCouriers.ApiService.Features.Delivery;
 using DelicateCouriers.ApiService.Infrastructure.Geocoding;
-using DelicateCouriers.Features.Shiplogic;
-using DelicateCouriers.Features.Shiplogic.DTOs;
 
 namespace DelicateCouriers.Tests.Shopify;
 
 /// <summary>
-/// Records the rate request it received and replays a canned response. The
-/// carrier-service callback only depends on GetRatesWithDiagnosticsAsync, so
-/// the other interface members throw to surface unexpected use.
+/// Records the delivery request it received and replays a canned answer.
+///
+/// Was a fake of IShiplogicService, which no longer exists: the engine is reached through the
+/// integration service now, and this is the seam. The members a test does not exercise throw
+/// rather than return a default, so a path that unexpectedly books something fails loudly
+/// instead of silently passing.
 /// </summary>
-public sealed class FakeShiplogicService : IShiplogicService
+public sealed class FakeDeliveryService : IDeliveryService
 {
-    public RateResponseDto RateResponse { get; set; } = new();
-    public bool WasCalled { get; private set; }
-    public List<ParcelDto>? LastParcels { get; private set; }
-    public AddressDto? LastCollection { get; private set; }
-    public AddressDto? LastDelivery { get; private set; }
+    /// <summary>
+    /// What <see cref="QuoteAsync"/> returns, or null for "this cannot be priced".
+    ///
+    /// Null by default, which is the behaviour the fake it replaced had: its canned response
+    /// was an empty rate list. A great many tests are about what happens when no rate comes
+    /// back — the special-trip fallback, the empty-rates contract — and a fake that quotes
+    /// cheerfully by default would quietly stop all of them testing anything.
+    /// </summary>
+    public DeliveryQuote? Quote { get; set; }
 
-    public Task<(RateResponseDto Rates, ShiplogicDiagnostics Diagnostics)> GetRatesWithDiagnosticsAsync(
-        string bearerToken,
-        AddressDto collectionAddress,
-        AddressDto deliveryAddress,
-        List<ParcelDto> parcels,
-        string? serviceLevelCode = null,
-        CancellationToken cancellationToken = default)
+    /// <summary>A specific failure to throw, when a test is about which failure it was.</summary>
+    public Exception? QuoteThrows { get; set; }
+
+    public bool WasCalled { get; private set; }
+    public int CallCount { get; private set; }
+    public DeliveryRequest? LastRequest { get; private set; }
+    public List<DeliveryRequest> Requests { get; } = new();
+
+    public Task<DeliveryQuote> QuoteAsync(
+        DeliveryRequest request, CancellationToken cancellationToken = default)
     {
         WasCalled = true;
-        LastCollection = collectionAddress;
-        LastDelivery = deliveryAddress;
-        LastParcels = parcels;
-        return Task.FromResult((RateResponse, new ShiplogicDiagnostics()));
+        CallCount++;
+        LastRequest = request;
+        Requests.Add(request);
+        if (QuoteThrows is not null) throw QuoteThrows;
+        if (Quote is null) throw new InvalidOperationException("no rate available for this request");
+        return Task.FromResult(Quote);
     }
 
-    public Task<RateResponseDto> GetRatesAsync(
-        string bearerToken,
-        AddressDto collectionAddress,
-        AddressDto deliveryAddress,
-        List<ParcelDto> parcels,
-        string? serviceLevelCode = null,
-        CancellationToken cancellationToken = default)
-        => Task.FromResult(RateResponse);
+    public Task<DeliveryBooking> BookAsync(
+        DeliveryRequest request, CancellationToken cancellationToken = default)
+        => throw new NotImplementedException("this test should not be booking anything");
 
-    public Task<CreateShipmentResponse> CreateShipmentAsync(string bearerToken, CreateShipmentRequest request, CancellationToken cancellationToken = default)
+    public Task<DeliveryBooking?> FindByReferenceAsync(
+        string accountRef, string customerReference, CancellationToken cancellationToken = default)
         => throw new NotImplementedException();
 
-    public Task<byte[]> GetLabelAsync(string bearerToken, string consignmentId, CancellationToken cancellationToken = default)
+    public Task<DeliveryBooking?> GetAsync(
+        string accountRef, string bookingId, CancellationToken cancellationToken = default)
         => throw new NotImplementedException();
 
-    public Task<TrackingResponse> GetTrackingUpdatesAsync(string bearerToken, List<string>? consignmentIds = null, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
-
-    public Task<bool> CancelShipmentAsync(string bearerToken, string consignmentId, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
-
-    public Task<byte[]?> GetShipmentLabelAsync(string bearerToken, int shipmentId, CancellationToken cancellationToken = default)
-        => throw new NotImplementedException();
-
-    public Task<CreateShipmentResponse?> FindShipmentByCustomerReferenceAsync(string bearerToken, string customerReference, CancellationToken cancellationToken = default)
+    public Task<byte[]?> GetLabelAsync(
+        string accountRef, string shipmentId, CancellationToken cancellationToken = default)
         => throw new NotImplementedException();
 }
 
