@@ -38,17 +38,22 @@ public sealed class EngineOptions
 /// </summary>
 public sealed class EngineCallException : Exception
 {
-    public EngineCallException(HttpStatusCode status, string code, string message, string? requestId)
+    public EngineCallException(
+        HttpStatusCode status, string code, string message, string? requestId, string? detail = null)
         : base(message)
     {
         Status = status;
         Code = code;
         RequestId = requestId;
+        Detail = detail;
     }
 
     public HttpStatusCode Status { get; }
     public string Code { get; }
     public string? RequestId { get; }
+
+    /// <summary>The Engine's own account of what was wrong, for the log. Never for the caller.</summary>
+    public string? Detail { get; }
 
     /// <summary>
     /// Worth trying again later. A 5xx or a timeout is the Engine having a bad moment; a 4xx
@@ -405,7 +410,8 @@ public sealed class EngineClient : IEngineClient
             response.StatusCode,
             code,
             error?.Message ?? $"the Engine returned {(int)response.StatusCode}",
-            error?.RequestId);
+            error?.RequestId,
+            error?.Details?.ToString());
     }
 
     /// <summary>Applied once at registration; every request carries the credential.</summary>

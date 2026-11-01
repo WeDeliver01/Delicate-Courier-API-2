@@ -160,8 +160,10 @@ public class RatesController : ControllerBase
             // unauthenticated, so the body must not describe our internals.
             var errorId = Guid.NewGuid().ToString("N")[..8];
             _logger.LogError(ex,
-                "RATES_FAIL [{ErrorId}] StoreId={StoreId} Code={Code}",
-                errorId, request.StoreId, (ex as EngineCallException)?.Code);
+                "RATES_FAIL [{ErrorId}] StoreId={StoreId} Code={Code} Detail={Detail}",
+                errorId, request.StoreId,
+                (ex as EngineCallException)?.Code,
+                (ex as EngineCallException)?.Detail);
 
             return StatusCode(500, new GetRatesResponseDto
             {
@@ -248,8 +250,10 @@ public class RatesController : ControllerBase
                 Address = ToEngineAddress(merchant.Collection),
                 Contact = new EngineContact
                 {
-                    Name = merchant.Collection.ContactName ?? merchant.Name,
-                    Phone = merchant.Collection.ContactPhone ?? string.Empty
+                    // Fallback, not ??: a merchant saved with the contact boxes left blank
+                    // holds "" rather than null, and "" is not a name the Engine will accept.
+                    Name = Fallback(merchant.Collection.ContactName, merchant.Name),
+                    Phone = Fallback(merchant.Collection.ContactPhone, "0000000000")
                 }
             },
             Drops = new List<EngineDrop>
@@ -275,7 +279,12 @@ public class RatesController : ControllerBase
                         // stored against anything — the booking sends the real ones.
                         Name = Fallback(request.DeliveryAddress.ContactName, "Customer"),
                         Phone = Fallback(request.DeliveryAddress.ContactPhone, "0000000000"),
-                        Email = request.DeliveryAddress.ContactEmail
+
+                        // Absent, not blank. The plugin fills every field it has a slot for,
+                        // so a shopper who has not typed an email sends "" — which is not an
+                        // address, and is not null either, and the Engine rejects the whole
+                        // quote over it. Null is the way to say "they did not give us one".
+                        Email = NullIfBlank(request.DeliveryAddress.ContactEmail)
                     },
                     Parcels = ToParcels(merchant, request.Parcels)
                 }
@@ -317,4 +326,7 @@ public class RatesController : ControllerBase
 
     private static string Fallback(string? value, string whenMissing) =>
         string.IsNullOrWhiteSpace(value) ? whenMissing : value;
+
+    private static string? NullIfBlank(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value;
 }

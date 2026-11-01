@@ -218,8 +218,11 @@ public sealed class OrderBookingService
             Address = ToEngineAddress(merchant.Collection),
             Contact = new EngineContact
             {
-                Name = merchant.Collection.ContactName ?? merchant.Name,
-                Phone = merchant.Collection.ContactPhone ?? string.Empty
+                // Fallback, not ??: a merchant saved with the contact boxes left blank holds
+                // "" rather than null, and the Engine refuses "" as a name or a phone number.
+                // A booking lost here is a real order that quietly never got collected.
+                Name = Fallback(merchant.Collection.ContactName, merchant.Name),
+                Phone = Fallback(merchant.Collection.ContactPhone, "0000000000")
             }
         },
         Drops = new List<EngineDrop>

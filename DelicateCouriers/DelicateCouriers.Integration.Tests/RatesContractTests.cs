@@ -128,6 +128,78 @@ public class RatesContractTests : IClassFixture<RatesContractTests.Host>
     }
 
     [Fact]
+    public async Task A_shopper_who_has_not_typed_an_email_still_gets_a_price()
+    {
+        // The plugin fills every slot it has, so a shopper who has given no email sends ""
+        // rather than nothing. "" is not an address and is not absent either, and the Engine
+        // refused the whole quote over it -- a checkout with no delivery option, reported as
+        // a 500 with a reference, for a field that does not affect the price at all.
+        string? sentEmail = "not called";
+        _host.Engine.Quote = call =>
+        {
+            sentEmail = call.Body.Drops[0].Recipient.Email;
+            return StubQuote(totalCents: 17_250);
+        };
+
+        var response = await _host.CreateClient().PostAsJsonAsync(
+            "/api/public/shipping/rates",
+            new
+            {
+                storeId = 1,
+                deliveryAddress = new
+                {
+                    streetAddress = "12 Oak Street",
+                    localArea = "Centurion",
+                    city = "Pretoria",
+                    country = "ZA",
+                    code = "0157",
+                    contactName = "Jane Smith",
+                    contactPhone = "0821234567",
+                    contactEmail = "",
+                },
+                parcels = new[] { new { parcelCount = 1, weight = 1.0 } },
+            });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.True(body.RootElement.GetProperty("success").GetBoolean());
+        Assert.Null(sentEmail);
+    }
+
+    [Fact]
+    public async Task A_merchant_with_no_collection_contact_still_gets_a_price()
+    {
+        // Same shape of bug one field over: the contact boxes are optional in the form, so a
+        // merchant who left them empty holds "" and not null, and ?? does not catch "".
+        // Store 8 is BlankContactStore() in the host's directory.
+        string? sentName = null;
+        string? sentPhone = null;
+        _host.Engine.Quote = call =>
+        {
+            sentName = call.Body.Collection.Contact?.Name;
+            sentPhone = call.Body.Collection.Contact?.Phone;
+            return StubQuote(totalCents: 17_250);
+        };
+
+        var response = await _host.CreateClient()
+            .PostAsJsonAsync("/api/public/shipping/rates", PluginPayload(storeId: 8));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.False(string.IsNullOrWhiteSpace(sentName));
+        Assert.False(string.IsNullOrWhiteSpace(sentPhone));
+    }
+
+    /// <summary>A merchant whose collection contact boxes were left empty.</summary>
+    private static Merchant BlankContactStore()
+    {
+        var blank = TwoLevelStore();
+        blank.StoreId = 8;
+        blank.Collection.ContactName = "";
+        blank.Collection.ContactPhone = "";
+        return blank;
+    }
+
+    [Fact]
     public async Task A_store_with_no_collection_pin_is_not_priced_at_all()
     {
         // 0,0 is in the Gulf of Guinea and the Engine will price a loop from there without
@@ -422,6 +494,7 @@ public class RatesContractTests : IClassFixture<RatesContractTests.Host>
                             // real to assert against rather than a single-item list.
                             TwoLevelStore(),
                             StrandedStore(),
+                            BlankContactStore(),
                             new()
                             {
                                 StoreId = 1,

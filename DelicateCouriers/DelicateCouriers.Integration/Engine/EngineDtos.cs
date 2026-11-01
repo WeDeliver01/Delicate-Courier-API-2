@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace DelicateCouriers.Integration.Engine;
@@ -97,4 +98,14 @@ public sealed record EngineError
     [JsonPropertyName("code")] public string Code { get; init; } = string.Empty;
     [JsonPropertyName("message")] public string Message { get; init; } = string.Empty;
     [JsonPropertyName("requestId")] public string? RequestId { get; init; }
+
+    /// <summary>
+    /// Whatever the Engine said was wrong, unread and unmodelled.
+    ///
+    /// On a validation failure this names the exact field — "Invalid uuid" at
+    /// drops[0].parcels[0].packageTypeId — which is the entire useful content of the
+    /// response. It was being dropped, so the log said only "request failed validation" and
+    /// finding out which field meant reconstructing the call by hand. Twice.
+    /// </summary>
+    [JsonPropertyName("details")] public JsonElement? Details { get; init; }
 }
