@@ -1,3 +1,4 @@
+using DelicateCouriers.Domain.Entities;
 using DelicateCouriers.ApiService.Features.Delivery;
 // Features/Shopify/Carriers/ShopifyRatesController.cs
 //
@@ -179,7 +180,9 @@ public class ShopifyRatesController : ControllerBase
                 {
                     AccountRef = store.EngineAccountRef,
                     CustomerReference = $"shopify-rates-{storeId}",
-                    ServiceLevelCode = store.DefaultServiceLevel,
+                    // The store's first configured level, by its Engine code. DefaultServiceLevel
+                    // holds a checkout code ("STD") and the Engine refuses those.
+                    ServiceLevelCode = PrimaryLevel(store).EngineCode,
                     Collection = DeliveryRequestFactory.StopFrom(collectionAddress),
                     Delivery = DeliveryRequestFactory.StopFrom(deliveryAddress),
                     Parcels = parcels.Select(p => new DeliveryParcel
@@ -200,8 +203,8 @@ public class ShopifyRatesController : ControllerBase
                             Rate = engineQuote.TotalAmount,
                             ServiceLevel = new ServiceLevelDto
                             {
-                                Code = store.DefaultServiceLevel,
-                                Name = store.CheckoutRateLabel ?? "Delicate Courier Delivery",
+                                Code = PrimaryLevel(store).CheckoutCode,
+                                Name = PrimaryLevel(store).CheckoutLabel,
                             },
                         },
                     },
@@ -437,4 +440,21 @@ public class ShopifyRatesController : ControllerBase
             }
         };
     }
+
+    /// <summary>
+    /// The one option Shopify's carrier callback shows, falling back to the old single
+    /// setting for a store whose list has not been filled in yet.
+    /// </summary>
+    private static StoreServiceLevel PrimaryLevel(Store store) =>
+        store.ServiceLevels.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l.EngineCode))
+        ?? new StoreServiceLevel
+        {
+            CheckoutCode = string.IsNullOrWhiteSpace(store.DefaultServiceLevel) ? "STD" : store.DefaultServiceLevel,
+            CheckoutLabel = string.IsNullOrWhiteSpace(store.CheckoutRateLabel)
+                ? "Delicate Courier Delivery"
+                : store.CheckoutRateLabel,
+            EngineCode = "standard",
+            EstimatedDeliveryDays = 1,
+        };
+
 }

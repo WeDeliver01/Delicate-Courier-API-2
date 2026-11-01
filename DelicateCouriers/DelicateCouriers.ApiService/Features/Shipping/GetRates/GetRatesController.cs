@@ -4,6 +4,7 @@ using DelicateCouriers.ApiService.Infrastructure;
 using DelicateCouriers.ApiService.Infrastructure.Geocoding;
 using DelicateCouriers.ApiService.Features.Delivery;
 using DelicateCouriers.ApiService.Features.Delivery.Shapes;
+using DelicateCouriers.Domain.Entities;
 using DelicateCouriers.Features.Shipping.GetRates.DTOs;
 using DelicateCouriers.Features.Shipping.SpecialTrip;
 using Microsoft.AspNetCore.Mvc;
@@ -208,46 +209,74 @@ public class GetRatesController : ControllerBase
 
             _logger.LogInformation("Mapped parcels: {@Parcels}", parcels);
 
-            // 6. Price it through the Engine.
+            // 6. Price every option this store offers, through the Engine.
             //
-            // One service level, the store's own, because that is what the old call passed
-            // and what the plugin filters to. The response is assembled in the same shape
-            // the rest of this method already expects, so switching couriers did not ripple
-            // into the fallback logic, the markup, or the payload the plugin reads.
-            var engineQuote = await _delivery.QuoteAsync(new DeliveryRequest
-            {
-                AccountRef = store.EngineAccountRef,
-                CustomerReference = $"rates-{request.StoreId}",
-                ServiceLevelCode = store.DefaultServiceLevel,
-                Collection = DeliveryRequestFactory.StopFrom(collectionAddress),
-                Delivery = DeliveryRequestFactory.StopFrom(deliveryAddress),
-                Parcels = parcels.Select(p => new DeliveryParcel
-                {
-                    PackageTypeId = store.EnginePackageTypeId,
-                    Quantity = p.ParcelCount <= 0 ? 1 : p.ParcelCount,
-                    WeightKg = p.Weight,
-                    Description = p.Description,
-                }).ToList(),
-            }, cancellationToken);
+            // A merchant selling next-day beside same-day needs both shown and both priced,
+            // and needs the shopper's choice to come back on the order. Priced together
+            // rather than one after another: somebody is waiting at a checkout, and three
+            // levels in sequence is three round trips of latency.
+            var levels = EffectiveServiceLevels(store);
 
-            var ratesResponse = new RateResponseDto
+            var engineParcels = parcels.Select(p => new DeliveryParcel
             {
-                Rates = new List<ShippingRateDto>
+                PackageTypeId = store.EnginePackageTypeId,
+                Quantity = p.ParcelCount <= 0 ? 1 : p.ParcelCount,
+                WeightKg = p.Weight,
+                Description = p.Description,
+            }).ToList();
+
+            var quoted = await Task.WhenAll(levels.Select(async level =>
+            {
+                try
                 {
-                    new()
+                    var quote = await _delivery.QuoteAsync(new DeliveryRequest
                     {
-                        Rate = engineQuote.TotalAmount,
+                        AccountRef = store.EngineAccountRef,
+                        CustomerReference = $"rates-{request.StoreId}",
+                        ServiceLevelCode = level.EngineCode,
+                        Collection = DeliveryRequestFactory.StopFrom(collectionAddress),
+                        Delivery = DeliveryRequestFactory.StopFrom(deliveryAddress),
+                        Parcels = engineParcels,
+                    }, cancellationToken);
+
+                    return (Rate: (ShippingRateDto?)new ShippingRateDto
+                    {
+                        Rate = quote.TotalAmount,
                         ServiceLevel = new ServiceLevelDto
                         {
-                            Code = store.DefaultServiceLevel,
-                            Name = store.CheckoutRateLabel ?? "Delicate Courier Delivery",
+                            Code = level.CheckoutCode,
+                            Name = level.CheckoutLabel,
                         },
-                    },
-                },
-            };
+                    }, Error: (Exception?)null);
+                }
+                catch (Exception ex)
+                {
+                    // One level failing must not take the others with it. A shopper offered
+                    // Standard when Express could not be priced is better served than one
+                    // offered nothing. Kept rather than swallowed: if they all fail, the
+                    // caller is owed the real reason.
+                    _logger.LogWarning(ex,
+                        "Store {StoreID}: could not price service level {Code}",
+                        request.StoreId, level.CheckoutCode);
+                    return (Rate: (ShippingRateDto?)null, Error: (Exception?)ex);
+                }
+            }));
 
-            _logger.LogInformation("Engine quoted {Amount} for service {Service}",
-                engineQuote.TotalAmount, store.DefaultServiceLevel);
+            var priced = quoted.Where(q => q.Rate is not null).Select(q => q.Rate!).ToList();
+            if (priced.Count == 0)
+            {
+                // Nothing priced at all is the Engine being unreachable, not a shopper typing
+                // an address we cannot resolve, so it keeps the existing contract rather than
+                // falling through to the special-trip path as if there were simply no rates.
+                var first = quoted.Select(q => q.Error).FirstOrDefault(e => e is not null);
+                if (first is not null) throw first;
+            }
+
+            var ratesResponse = new RateResponseDto { Rates = priced };
+
+            _logger.LogInformation(
+                "Engine priced {Count} of {Offered} service levels for StoreID {StoreID}",
+                priced.Count, levels.Count, request.StoreId);
 
             // 7. Return all available rates
             if (!ratesResponse.Rates.Any())
@@ -452,6 +481,39 @@ public class GetRatesController : ControllerBase
             // omit the field entirely rather than risk leaking unredacted PII.
             return "[redaction failed; request body omitted]";
         }
+    }
+
+    /// <summary>
+    /// What this store offers, with the old single setting standing in when the list is empty.
+    ///
+    /// Every store was configured with one option before the list existed, and some will not
+    /// have been edited since. Falling back to it means nothing stops offering delivery on the
+    /// day this ships. EngineCode is "standard" and not the stored value: that field holds a
+    /// checkout code — "STD" — which this portal used to pass to the Engine as if it were an
+    /// Engine service level, and the Engine answers that with "service level not found".
+    /// </summary>
+    private static List<StoreServiceLevel> EffectiveServiceLevels(Store store)
+    {
+        var configured = store.ServiceLevels
+            .Where(l => !string.IsNullOrWhiteSpace(l.EngineCode)
+                        && !string.IsNullOrWhiteSpace(l.CheckoutCode))
+            .ToList();
+        if (configured.Count > 0) return configured;
+
+        return new List<StoreServiceLevel>
+        {
+            new()
+            {
+                CheckoutCode = string.IsNullOrWhiteSpace(store.DefaultServiceLevel)
+                    ? "STD"
+                    : store.DefaultServiceLevel,
+                CheckoutLabel = string.IsNullOrWhiteSpace(store.CheckoutRateLabel)
+                    ? "Delicate Courier Delivery"
+                    : store.CheckoutRateLabel,
+                EngineCode = "standard",
+                EstimatedDeliveryDays = 1,
+            },
+        };
     }
 
     private static void RedactAddressNode(System.Text.Json.Nodes.JsonNode? addr)

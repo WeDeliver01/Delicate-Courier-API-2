@@ -1,5 +1,6 @@
 'use client'
 
+import { ServiceLevelsEditor, type StoreServiceLevel } from '@/components/stores/service-levels'
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import api from '@/lib/api'
@@ -40,6 +41,7 @@ interface StoreDetail {
   engineAccountRef: string
   enginePackageTypeId: string
   defaultServiceLevel: string
+  serviceLevels?: StoreServiceLevel[]
   // Special Trip fallback
   specialTripCostPerKm?: number | null
   specialTripMinFee?: number | null
@@ -82,6 +84,7 @@ export default function StoreEditPage() {
   const [engineAccountRef, setEngineAccountRef] = useState<string>('')
   const [enginePackageTypeId, setEnginePackageTypeId] = useState<string>('')
   const [defaultServiceLevel, setDefaultServiceLevel] = useState('ECO')
+  const [serviceLevels, setServiceLevels] = useState<StoreServiceLevel[]>([])
 
   // Special Trip fallback
   const [specialTripCostPerKm, setSpecialTripCostPerKm] = useState('')
@@ -140,6 +143,7 @@ export default function StoreEditPage() {
       setEngineAccountRef(data.engineAccountRef || '')
       setEnginePackageTypeId(data.enginePackageTypeId || '')
       setDefaultServiceLevel(data.defaultServiceLevel || 'ECO')
+      setServiceLevels(data.serviceLevels ?? [])
 
       // Special Trip fallback
       setSpecialTripCostPerKm(data.specialTripCostPerKm != null ? String(data.specialTripCostPerKm) : '')
@@ -183,7 +187,8 @@ export default function StoreEditPage() {
         // Delivery through the Engine
         engineAccountRef,
         enginePackageTypeId,
-        defaultServiceLevel
+        defaultServiceLevel,
+        serviceLevels,
       }
 
       // Only include credentials if they were entered
@@ -605,20 +610,17 @@ export default function StoreEditPage() {
                     />
                   </div>
 
-                  <div>
-                    <Label htmlFor="defaultServiceLevel">Default Service Level</Label>
-                    <select
-                      id="defaultServiceLevel"
-                      value={defaultServiceLevel}
-                      onChange={(e) => setDefaultServiceLevel(e.target.value)}
+                  <div className="sm:col-span-3">
+                    <Label>Delivery options at checkout</Label>
+                    <p className="mt-1 mb-2 text-xs text-gray-500">
+                      Each is priced separately and shown to the shopper to choose between.
+                      Leave empty to offer a single standard delivery.
+                    </p>
+                    <ServiceLevelsEditor
+                      levels={serviceLevels}
+                      onChange={setServiceLevels}
                       disabled={saving}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <option value="ECO">ECO - Economy</option>
-                      <option value="STD">STD - Standard</option>
-                      <option value="ONX">ONX - Overnight Express</option>
-                      <option value="EXSM">EXSM - Express Same Day</option>
-                    </select>
+                    />
                   </div>
                 </div>
 

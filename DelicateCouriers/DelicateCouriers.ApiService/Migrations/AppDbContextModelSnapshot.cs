@@ -1060,12 +1060,6 @@ namespace DelicateCouriers.ApiService.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<int>("ShiplogicAccountId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("ShiplogicProviderId")
-                        .HasColumnType("integer");
-
                     b.Property<string>("ShopifyAccessToken")
                         .HasColumnType("text");
 
@@ -1507,6 +1501,42 @@ namespace DelicateCouriers.ApiService.Migrations
                         .HasForeignKey("TenantID")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.OwnsMany("DelicateCouriers.Domain.Entities.StoreServiceLevel", "ServiceLevels", b1 =>
+                        {
+                            b1.Property<int>("StoreID")
+                                .HasColumnType("integer");
+
+                            b1.Property<int>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer");
+
+                            b1.Property<string>("CheckoutCode")
+                                .IsRequired()
+                                .HasColumnType("text");
+
+                            b1.Property<string>("CheckoutLabel")
+                                .IsRequired()
+                                .HasColumnType("text");
+
+                            b1.Property<string>("EngineCode")
+                                .IsRequired()
+                                .HasColumnType("text");
+
+                            b1.Property<int>("EstimatedDeliveryDays")
+                                .HasColumnType("integer");
+
+                            b1.HasKey("StoreID", "Id");
+
+                            b1.ToTable("Stores");
+
+                            b1.ToJson("ServiceLevels");
+
+                            b1.WithOwner()
+                                .HasForeignKey("StoreID");
+                        });
+
+                    b.Navigation("ServiceLevels");
 
                     b.Navigation("Tenant");
                 });

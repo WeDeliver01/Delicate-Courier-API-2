@@ -110,6 +110,11 @@ public class AppDbContext : DbContext, IDataProtectionKeyContext
             entity.Property(e => e.SpecialTripMinFee).HasPrecision(18, 2);
             entity.Property(e => e.SpecialTripMaxKm).HasPrecision(10, 1);
             entity.Property(e => e.EngineAccountRef).HasMaxLength(120);
+
+            // JSON on the row, the same way the integration service held it: a short list,
+            // only ever read whole, belonging to exactly one store.
+            entity.OwnsMany(e => e.ServiceLevels, levels => levels.ToJson());
+
             entity.Property(e => e.EnginePackageTypeId).HasMaxLength(64);
             entity.Property(e => e.WooCommerceURL).HasMaxLength(500);
             entity.Property(e => e.WooConsumerKey).HasMaxLength(200);

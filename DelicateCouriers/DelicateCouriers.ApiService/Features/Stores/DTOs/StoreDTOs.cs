@@ -34,12 +34,15 @@ namespace DelicateCouriers.ApiService.Features.Stores.DTOs
         public string? CollectionContactEmail { get; set; }
         public string? CollectionCompanyName { get; set; }
 
-        // Shiplogic Configuration
+        // Engine configuration
         public string EngineAccountRef { get; set; } = string.Empty;
         public string EnginePackageTypeId { get; set; } = string.Empty;
         public string DefaultServiceLevel { get; set; } = "STD";
 
-        // Special Trip fallback (distance-priced rate when Shiplogic has no rate)
+        /// <summary>What this store offers at checkout. Empty keeps the single setting above.</summary>
+        public List<StoreServiceLevelDto> ServiceLevels { get; set; } = new();
+
+        // Special Trip fallback (distance-priced rate when the Engine has no rate)
         public decimal? SpecialTripCostPerKm { get; set; }
         public decimal? SpecialTripMinFee { get; set; }
         public decimal? SpecialTripMaxKm { get; set; }
@@ -83,10 +86,13 @@ namespace DelicateCouriers.ApiService.Features.Stores.DTOs
         public string? CollectionContactEmail { get; set; }
         public string? CollectionCompanyName { get; set; }
 
-        // Shiplogic Configuration
+        // Engine configuration
         public string? EngineAccountRef { get; set; }
         public string? EnginePackageTypeId { get; set; }
         public string? DefaultServiceLevel { get; set; }
+
+        /// <summary>Null leaves the stored list alone; an empty list clears it.</summary>
+        public List<StoreServiceLevelDto>? ServiceLevels { get; set; }
 
         // Special Trip fallback. Null = leave unchanged; 0 CostPerKm disables.
         public decimal? SpecialTripCostPerKm { get; set; }
@@ -136,10 +142,13 @@ namespace DelicateCouriers.ApiService.Features.Stores.DTOs
         public string? CollectionContactEmail { get; set; }
         public string? CollectionCompanyName { get; set; }
 
-        // Shiplogic Configuration
+        // Engine configuration
         public string EngineAccountRef { get; set; } = string.Empty;
         public string EnginePackageTypeId { get; set; } = string.Empty;
         public string DefaultServiceLevel { get; set; } = "STD";
+
+        /// <summary>What this store offers at checkout. Empty keeps the single setting above.</summary>
+        public List<StoreServiceLevelDto> ServiceLevels { get; set; } = new();
 
         // Special Trip fallback configuration
         public decimal? SpecialTripCostPerKm { get; set; }
@@ -155,5 +164,20 @@ namespace DelicateCouriers.ApiService.Features.Stores.DTOs
         public bool IsConnected { get; set; }
         public string Message { get; set; } = string.Empty;
         public string? WooCommerceVersion { get; set; }
+    }
+
+    /// <summary>One delivery option a store offers, as the console edits it.</summary>
+    public class StoreServiceLevelDto
+    {
+        /// <summary>Becomes the WooCommerce method id suffix, e.g. "STD".</summary>
+        public string CheckoutCode { get; set; } = string.Empty;
+
+        /// <summary>What the shopper reads.</summary>
+        public string CheckoutLabel { get; set; } = string.Empty;
+
+        /// <summary>The Engine level to price and book against: standard, express, on_demand.</summary>
+        public string EngineCode { get; set; } = string.Empty;
+
+        public int EstimatedDeliveryDays { get; set; } = 1;
     }
 }

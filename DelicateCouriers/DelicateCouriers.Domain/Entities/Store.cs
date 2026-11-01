@@ -190,7 +190,28 @@ public class Store
 
 
 
+    /// <summary>
+    /// The single delivery option this store used to offer.
+    ///
+    /// Superseded by <see cref="ServiceLevels"/>, which can hold several. Kept because it is
+    /// what every store was configured with before there was a list, and because the Shopify
+    /// carrier callback and the special-trip fallback still read it. A store with an empty
+    /// list falls back to this one, so nothing that worked before stops working.
+    /// </summary>
     public string DefaultServiceLevel { get; set; } = "STD";
+
+    /// <summary>
+    /// What this store offers at checkout, in the order a shopper sees them.
+    ///
+    /// A merchant selling next-day beside same-day needs both priced and both shown, and
+    /// needs to know which one was chosen when the order arrives — so each carries the code
+    /// the plugin builds its WooCommerce method id from, the words the customer reads, and
+    /// the Engine level to price and book against.
+    ///
+    /// Stored as JSON on the store rather than as a table: it is a short list that is only
+    /// ever read whole, with this store and no other.
+    /// </summary>
+    public List<StoreServiceLevel> ServiceLevels { get; set; } = new();
 
     /// <summary>
     /// This store's own identifier, which the Engine resolves to an account.

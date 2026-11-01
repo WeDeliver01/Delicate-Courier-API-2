@@ -15,15 +15,6 @@ public class OrderToShipmentMapper
     private readonly IGeocoder _geocoder;
     private readonly ILogger<OrderToShipmentMapper> _logger;
 
-    // Service level codes this portal offers
-    private static readonly HashSet<string> ValidServiceLevels = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "STD", "LSF", "LOF", "ECO", "LSE", "LSX", "NFS", "NOF", "NFE", "RFS", "ROF", "RFE",
-        // SPX — an ad-hoc special trip, priced by distance; used for
-        // special_trip orders quoted by the WooCommerce plugin (v2.7.0+).
-        "SPX"
-    };
-
     public OrderToShipmentMapper(PackageMappingService packageMappingService, IGeocoder geocoder, ILogger<OrderToShipmentMapper> logger)
     {
         _packageMappingService = packageMappingService;
@@ -75,17 +66,16 @@ public class OrderToShipmentMapper
                 "(pickup/collection orders must not book shipments) or ask the customer for a complete address.");
         }
 
-        var serviceLevel = GetValidServiceLevel(store.DefaultServiceLevel);
+        var serviceLevel = EngineServiceLevelFor(order, store);
 
-        // Special-trip orders (plugin v2.7.0+ fallback rate) are booked as
-        // Shiplogic SPX ad-hoc trips, with the amount quoted to the customer
-        // carried as the shipment's declared value.
+        // Special-trip orders (plugin v2.7.0+ fallback rate) are an ad-hoc trip priced by
+        // distance, with the amount quoted to the customer carried as the declared value.
         var isSpecialTrip = string.Equals(order.FulfillmentType, "special_trip", StringComparison.OrdinalIgnoreCase);
         if (isSpecialTrip)
         {
-            serviceLevel = "SPX";
+            serviceLevel = "on_demand";
             _logger.LogInformation(
-                "Order {OrderId} is a special trip — booking as SPX with declared value {DeclaredValue}",
+                "Order {OrderId} is a special trip — booking on demand with declared value {DeclaredValue}",
                 order.OrderID, order.SpecialTripQuotedAmount);
         }
         var deliveryDate = order.RequestedDeliveryDate?.Date ?? DateTime.UtcNow.AddDays(1).Date;
@@ -475,21 +465,39 @@ public class OrderToShipmentMapper
         };
     }
 
-    private static string GetValidServiceLevel(string? storeServiceLevel)
+    /// <summary>
+    /// The Engine service level to book this order against.
+    ///
+    /// Prefer the one the shopper actually chose. A merchant offering next-day beside
+    /// same-day must not deliver the cheaper one to somebody who paid for the dearer, and the
+    /// only record of that choice is the WooCommerce method id on the order.
+    ///
+    /// No match is not a failure. A merchant may list our rates beside their own flat rate,
+    /// and a shopper who picks theirs still wants delivering — so it falls back to the first
+    /// level the store offers, which is how every store behaved when there was only one.
+    ///
+    /// What this returns goes to the Engine verbatim. It used to return "STD" and friends,
+    /// which were the previous courier's codes; the Engine answers those with
+    /// "service level not found", so no order booked with one would have gone anywhere.
+    /// </summary>
+    private static string EngineServiceLevelFor(Order order, Store store)
     {
-        if (!string.IsNullOrWhiteSpace(storeServiceLevel) && ValidServiceLevels.Contains(storeServiceLevel))
+        var levels = store.ServiceLevels
+            .Where(l => !string.IsNullOrWhiteSpace(l.EngineCode))
+            .ToList();
+
+        var chosen = order.ShippingMethodId;
+        if (!string.IsNullOrWhiteSpace(chosen))
         {
-            return storeServiceLevel.ToUpperInvariant();
+            // EndsWith on "_CODE" rather than Contains, so "STD" cannot claim an order that
+            // chose "STDPLUS".
+            var match = levels.FirstOrDefault(l =>
+                !string.IsNullOrWhiteSpace(l.CheckoutCode)
+                && chosen.EndsWith("_" + l.CheckoutCode, StringComparison.OrdinalIgnoreCase));
+            if (match is not null) return match.EngineCode;
         }
 
-        return storeServiceLevel?.ToUpperInvariant() switch
-        {
-            "ECO" => "STD",
-            "STANDARD" => "STD",
-            "EXPRESS" => "LSX",
-            "OVERNIGHT" => "LOF",
-            _ => "STD"
-        };
+        return levels.FirstOrDefault()?.EngineCode ?? "standard";
     }
 
     private static void ValidateStoreConfiguration(Store store)

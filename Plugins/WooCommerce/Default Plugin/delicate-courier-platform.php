@@ -3,7 +3,7 @@
  * Plugin Name: Delicate Courier Platform
  * Plugin URI:  https://delicatecourier.co.za
  * Description: WooCommerce integration for the Delicate Courier Platform. Provides live courier rates at checkout (server-side geocoded via the platform) and signed order push to the platform for automated shipment creation.
- * Version:     2.13.0
+ * Version:     2.14.0
  * Author:      Delicate Courier
  * Author URI:  https://delicatecourier.co.za
  * License:     Proprietary
@@ -59,6 +59,18 @@ if ( ! defined( 'ABSPATH' ) ) {
  *              coordinates, quote status/price/message) above the existing
  *              Shipment & Tracking section. Reads order meta only; degrades
  *              gracefully on non-DTSC stores.
+ *     v2.14.0 — NO contract change. Rates and orders now go to the portal
+ *              (app.delicatecourier.co.za) rather than straight to the
+ *              integration service. Same three paths, same payloads, same
+ *              signature — only the host moves.
+ *              Orders were being posted to a service that books them and
+ *              keeps nothing, so nothing was ever recorded against the store
+ *              and the portal's Orders page could only ever be empty. The
+ *              portal records the order, then books it through that same
+ *              integration service, so the engine is still reached by exactly
+ *              one process holding exactly one credential.
+ *              The webhook secret is the portal's. A store configured against
+ *              the integration service's secret must be re-issued one.
  *     v2.13.0 — NO contract change. Removes the direct-Shiplogic fallback and
  *              every Shiplogic setting, diagnostic and credential with it.
  *              The platform no longer books that courier, so the fallback
@@ -150,7 +162,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * CONSTANTS
  * ========================================================================== */
 
-define( 'DCP_VERSION',         '2.13.0' );
+define( 'DCP_VERSION',         '2.14.0' );
 define( 'DCP_PLUGIN_FILE',     __FILE__ );
 define( 'DCP_PLUGIN_DIR',      plugin_dir_path( __FILE__ ) );
 define( 'DCP_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
@@ -161,7 +173,7 @@ define( 'DCP_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
 // staging, or as a fallback while DNS for the custom domain propagates.
 // Always read the active value through dcp_platform_base_url() below,
 // not through the constant directly.
-define( 'DCP_PLATFORM_BASE_URL',    'https://api.delicatecourier.co.za' );
+define( 'DCP_PLATFORM_BASE_URL',    'https://app.delicatecourier.co.za' );
 
 // Licensing and updates still come from the original platform. See the v2.10.0
 // note in the contract block above for why this is a separate host.

@@ -39,6 +39,12 @@ interface StoreDetail {
   engineAccountRef: string
   enginePackageTypeId: string
   defaultServiceLevel: string
+  serviceLevels?: Array<{
+    checkoutCode: string
+    checkoutLabel: string
+    engineCode: string
+    estimatedDeliveryDays: number
+  }>
 }
 
 export default function StoreDetailPage() {
@@ -501,8 +507,26 @@ export default function StoreDetailPage() {
                 </div>
 
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Default Service Level</p>
-                  <p className="font-medium">{store.defaultServiceLevel || 'ECO'}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Delivery options at checkout</p>
+                  {store.serviceLevels && store.serviceLevels.length > 0 ? (
+                    <ul className="mt-1 space-y-1">
+                      {store.serviceLevels.map((level) => (
+                        <li key={level.checkoutCode} className="text-sm">
+                          <span className="font-medium">{level.checkoutLabel || level.checkoutCode}</span>
+                          <span className="text-gray-500">
+                            {' '}&middot; <span className="font-mono">{level.checkoutCode}</span>
+                            {' '}&rarr; <span className="font-mono">{level.engineCode}</span>
+                            {' '}&middot; {level.estimatedDeliveryDays}&nbsp;day
+                            {level.estimatedDeliveryDays === 1 ? '' : 's'}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-gray-500">
+                      One standard delivery. Add options on the edit page to offer a choice.
+                    </p>
+                  )}
                 </div>
               </CardContent>
             </Card>

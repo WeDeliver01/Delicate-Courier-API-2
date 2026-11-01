@@ -1,5 +1,23 @@
 # Delicate Courier Platform — WooCommerce plugin changelog
 
+## 2.14.0 (Default) — 2026-11-01
+
+### Rates and orders go to the portal
+- `DCP_PLATFORM_BASE_URL` is now `app.delicatecourier.co.za`. Same three
+  paths, same payloads, same signature — only the host moves.
+- Orders were being posted to a service that books them and keeps nothing, so
+  nothing was ever recorded against the store and the portal's Orders page
+  could only ever be empty. The portal records the order, then books it
+  through that same integration service, so the engine is still reached by
+  exactly one process holding exactly one credential.
+
+### The webhook secret changes with it
+- The portal's secret is now the authoritative one. A store configured
+  against the integration service's secret must be re-issued one, and the
+  plugin upgraded at the same time — leave either half and the store stops
+  posting successfully.
+
+
 ## 2.13.0 (Default) — 2026-11-01
 
 ### Shiplogic is gone

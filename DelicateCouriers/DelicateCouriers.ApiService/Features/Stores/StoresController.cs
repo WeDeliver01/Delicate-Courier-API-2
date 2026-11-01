@@ -153,6 +153,7 @@ namespace DelicateCouriers.ApiService.Features.Stores
                 EngineAccountRef = request.EngineAccountRef ?? string.Empty,
                 EnginePackageTypeId = request.EnginePackageTypeId ?? string.Empty,
                 DefaultServiceLevel = request.DefaultServiceLevel,
+                ServiceLevels = ToEntityLevels(request.ServiceLevels),
 
                 // Special Trip fallback
                 SpecialTripCostPerKm = request.SpecialTripCostPerKm,
@@ -281,6 +282,10 @@ namespace DelicateCouriers.ApiService.Features.Stores
                 store.EnginePackageTypeId = request.EnginePackageTypeId;
             if (request.DefaultServiceLevel != null)
                 store.DefaultServiceLevel = request.DefaultServiceLevel;
+            // Null leaves the stored list alone — an edit form that does not render them must
+            // not clear them. An empty list is an explicit "offer nothing from this list".
+            if (request.ServiceLevels != null)
+                store.ServiceLevels = ToEntityLevels(request.ServiceLevels);
 
             // Update Special Trip fallback config. Null = unchanged;
             // send SpecialTripCostPerKm = 0 to disable the fallback.
@@ -404,6 +409,13 @@ namespace DelicateCouriers.ApiService.Features.Stores
                 EngineAccountRef = s.EngineAccountRef,
                 EnginePackageTypeId = s.EnginePackageTypeId,
                 DefaultServiceLevel = s.DefaultServiceLevel,
+                ServiceLevels = s.ServiceLevels.Select(l => new StoreServiceLevelDto
+                {
+                    CheckoutCode = l.CheckoutCode,
+                    CheckoutLabel = l.CheckoutLabel,
+                    EngineCode = l.EngineCode,
+                    EstimatedDeliveryDays = l.EstimatedDeliveryDays,
+                }).ToList(),
 
                 // Special Trip fallback
                 SpecialTripCostPerKm = s.SpecialTripCostPerKm,
@@ -584,5 +596,27 @@ namespace DelicateCouriers.ApiService.Features.Stores
 
             return Convert.ToBase64String(hash);
         }
+
+        /// <summary>
+        /// The console's service levels as the store stores them.
+        ///
+        /// Blank rows are dropped rather than saved: an edit form with a spare empty row at the
+        /// bottom would otherwise persist a level with no code, which prices nothing and shows a
+        /// nameless option at somebody's checkout.
+        /// </summary>
+        private static List<StoreServiceLevel> ToEntityLevels(List<StoreServiceLevelDto>? levels) =>
+            (levels ?? new List<StoreServiceLevelDto>())
+                .Where(l => !string.IsNullOrWhiteSpace(l.CheckoutCode)
+                            && !string.IsNullOrWhiteSpace(l.EngineCode))
+                .Select(l => new StoreServiceLevel
+                {
+                    CheckoutCode = l.CheckoutCode.Trim(),
+                    CheckoutLabel = string.IsNullOrWhiteSpace(l.CheckoutLabel)
+                        ? l.CheckoutCode.Trim()
+                        : l.CheckoutLabel.Trim(),
+                    EngineCode = l.EngineCode.Trim().ToLowerInvariant(),
+                    EstimatedDeliveryDays = l.EstimatedDeliveryDays <= 0 ? 1 : l.EstimatedDeliveryDays,
+                })
+                .ToList();
     }
 }

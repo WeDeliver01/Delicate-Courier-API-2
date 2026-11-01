@@ -1,5 +1,6 @@
 'use client'
 
+import { ServiceLevelsEditor, type StoreServiceLevel } from '@/components/stores/service-levels'
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
@@ -79,6 +80,7 @@ function StoreWizardForm() {
     engineAccountRef: '',
     enginePackageTypeId: '',
     defaultServiceLevel: 'STD',
+    serviceLevels: [] as StoreServiceLevel[],
     collectionTimeFrom: '08:00',
     collectionTimeTo: '16:00',
     deliveryTimeFrom: '08:00',
@@ -107,7 +109,11 @@ function StoreWizardForm() {
     }
   }
 
-  const updateFormData = (field: string, value: string) => {
+  // Typed against the form's own shape rather than `string`: the service levels are a list,
+  // and a setter that only admits strings would have to be cast around — which is how a
+  // misspelled field name survives a rename forever.
+  type StoreFormData = typeof formData
+  const updateFormData = <K extends keyof StoreFormData>(field: K, value: StoreFormData[K]) => {
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
@@ -250,6 +256,7 @@ function StoreWizardForm() {
         engineAccountRef: formData.engineAccountRef,
         enginePackageTypeId: formData.enginePackageTypeId,
         defaultServiceLevel: formData.defaultServiceLevel,
+        serviceLevels: formData.serviceLevels,
         collectionTimeFrom: formData.collectionTimeFrom,
         collectionTimeTo: formData.collectionTimeTo,
         deliveryTimeFrom: formData.deliveryTimeFrom,
@@ -744,17 +751,15 @@ function StoreWizardForm() {
                   </div>
 
                   <div>
-                    <Label htmlFor="defaultServiceLevel">Default Service Level</Label>
-                    <select
-                      id="defaultServiceLevel"
-                      value={formData.defaultServiceLevel}
-                      onChange={(e) => updateFormData('defaultServiceLevel', e.target.value)}
-                      className="mt-1 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-2"
-                    >
-                      <option value="ECO">Economy (ECO)</option>
-                      <option value="STD">Standard (STD)</option>
-                      <option value="EXP">Express (EXP)</option>
-                    </select>
+                    <Label>Delivery options at checkout</Label>
+                    <p className="mt-1 mb-2 text-xs text-gray-500">
+                      Each one is priced separately and shown to the shopper to choose between.
+                      Leave empty to offer a single standard delivery.
+                    </p>
+                    <ServiceLevelsEditor
+                      levels={formData.serviceLevels}
+                      onChange={(next) => updateFormData('serviceLevels', next)}
+                    />
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
