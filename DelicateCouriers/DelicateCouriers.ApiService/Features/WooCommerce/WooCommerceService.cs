@@ -806,6 +806,11 @@ namespace DelicateCouriers.ApiService.Features.WooCommerce
             HttpClient client, HttpMethod method, string path, HttpContent? content,
             string consumerKey, string consumerSecret)
         {
+            // Relative, never rooted. A path beginning "/" is an absolute path and replaces
+            // the base's path entirely, so "/wp-json/..." against a base of
+            // ".../staging/" asks the site root — a different WordPress, or none.
+            path = WooUrl.Relative(path);
+
             using var request = new HttpRequestMessage(method, path) { Content = content };
             var response = await client.SendAsync(request);
 
@@ -837,7 +842,12 @@ namespace DelicateCouriers.ApiService.Features.WooCommerce
         private HttpClient CreateAuthenticatedClient(string baseUrl, string consumerKey, string consumerSecret)
         {
             var client = _httpClientFactory.CreateClient();
-            client.BaseAddress = new Uri(baseUrl);
+
+            // Trailing slash, or the last path segment is thrown away when a relative request
+            // is resolved against it. A store living in a subfolder —
+            // honeybeebaker.co.za/staging — is the case this matters for, and it fails by
+            // asking the wrong WordPress install rather than by erroring.
+            client.BaseAddress = WooUrl.Base(baseUrl);
             client.Timeout = TimeSpan.FromSeconds(30);
 
             // WooCommerce uses HTTP Basic Authentication
