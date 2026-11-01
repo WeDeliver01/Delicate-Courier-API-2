@@ -49,8 +49,24 @@ public static class DeliveryRequestFactory
     /// booking path keeps them separate. Both arrive at the same place rather than each
     /// growing its own translation.
     /// </summary>
-    public static DeliveryStop StopFrom(AddressDto address, ContactDto? contact = null) =>
-        ToStop(address, contact ?? address.Contact ?? new ContactDto { Name = string.Empty });
+    public static DeliveryStop StopFrom(AddressDto address, ContactDto? contact = null)
+    {
+        var who = contact ?? address.Contact ?? new ContactDto { Name = string.Empty };
+
+        // A quote needs a recipient shaped like a real one — the Engine requires a name and a
+        // phone — but at a checkout the shopper may not have typed theirs yet, and the plugin
+        // fills every slot it has, so what arrives is "" rather than nothing. Neither is a
+        // name and neither is absent, and the Engine refuses the whole quote over fields that
+        // have no bearing on the price. Stood in for here, on the quoting path only: a
+        // booking with no way to reach the recipient should fail loudly, because a driver at
+        // a gate with an unanswered phone is the most expensive minute in the job.
+        return ToStop(address, new ContactDto
+        {
+            Name = string.IsNullOrWhiteSpace(who.Name) ? "Customer" : who.Name,
+            Mobile = string.IsNullOrWhiteSpace(who.Mobile) ? "0000000000" : who.Mobile,
+            Email = who.Email,
+        });
+    }
 
     private static DeliveryStop ToStop(AddressDto address, ContactDto contact) => new()
     {
@@ -70,7 +86,10 @@ public static class DeliveryRequestFactory
 
         ContactName = contact.Name,
         ContactPhone = contact.Mobile ?? string.Empty,
-        ContactEmail = contact.Email,
+
+        // Absent, not blank. A shopper who has not typed an email sends "", which is neither
+        // an address nor nothing, and the Engine rejects the whole quote over it.
+        ContactEmail = string.IsNullOrWhiteSpace(contact.Email) ? null : contact.Email,
         Instructions = address.BuildingDetails,
     };
 

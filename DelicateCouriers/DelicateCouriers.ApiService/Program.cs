@@ -78,6 +78,15 @@ builder.Services.AddControllers();
 // provisioning users and syncing app_metadata when role/tenant changes).
 builder.Services.AddHttpClient<SupabaseAdminService>();
 
+// The engine, reached through the integration service — the one process holding the engine
+// credential. Registering it was missed when the courier changed, so every rates request and
+// every booking threw "Unable to resolve service for type 'IDeliveryService'" before reaching
+// any of this code. Nothing noticed, because nothing was calling this host yet.
+builder.Services.AddHttpClient<DelicateCouriers.ApiService.Features.Delivery.IDeliveryService,
+                               DelicateCouriers.ApiService.Features.Delivery.DeliveryService>(
+    (sp, http) => DelicateCouriers.ApiService.Features.Delivery.DeliveryService.Configure(
+        http, sp.GetRequiredService<IConfiguration>()));
+
 //registering WooCommerceService
 builder.Services.AddHttpClient<IWooCommerceService, WooCommerceService>()
                 .AddPolicyHandler(GetRetryPolicy())

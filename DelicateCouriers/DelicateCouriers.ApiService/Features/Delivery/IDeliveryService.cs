@@ -52,17 +52,22 @@ public interface IDeliveryService
 /// </summary>
 public sealed class DeliveryException : Exception
 {
-    public DeliveryException(HttpStatusCode status, string code, string message, bool transient)
+    public DeliveryException(
+        HttpStatusCode status, string code, string message, bool transient, string? detail = null)
         : base(message)
     {
         Status = status;
         Code = code;
         IsTransient = transient;
+        Detail = detail;
     }
 
     public HttpStatusCode Status { get; }
     public string Code { get; }
     public bool IsTransient { get; }
+
+    /// <summary>The Engine's own account of what was wrong. For the log, never for a shopper.</summary>
+    public string? Detail { get; }
 }
 
 public sealed class DeliveryService : IDeliveryService
@@ -165,14 +170,15 @@ public sealed class DeliveryService : IDeliveryService
         var transient = error?.Transient ?? (int)response.StatusCode >= 500;
 
         _logger.LogWarning(
-            "Delivery call failed: {Status} {Code} {Message}",
-            (int)response.StatusCode, code, error?.Error);
+            "Delivery call failed: {Status} {Code} {Message} {Detail}",
+            (int)response.StatusCode, code, error?.Error, error?.Detail?.ToString());
 
         return new DeliveryException(
             response.StatusCode,
             code,
             error?.Error ?? $"The integration service returned {(int)response.StatusCode}",
-            transient);
+            transient,
+            error?.Detail?.ToString());
     }
 
     private sealed record IntegrationError
@@ -180,6 +186,7 @@ public sealed class DeliveryService : IDeliveryService
         [JsonPropertyName("error")] public string? Error { get; init; }
         [JsonPropertyName("code")] public string? Code { get; init; }
         [JsonPropertyName("transient")] public bool? Transient { get; init; }
+        [JsonPropertyName("detail")] public JsonElement? Detail { get; init; }
     }
 
     /// <summary>

@@ -305,11 +305,20 @@ public class PortalController : ControllerBase
         };
     }
 
+    /// <summary>
+    /// A stop's contact, with blanks treated as absent.
+    ///
+    /// Callers fill every field they have a slot for, so somebody who gave no email address
+    /// arrives as "" rather than nothing. "" is not an address and is not absent either, and
+    /// the Engine refuses the whole request over it — a field that has no bearing on the
+    /// price taking down the quote. Name and phone are required, so a blank there stays blank
+    /// and is reported as the validation failure it is.
+    /// </summary>
     private static EngineContact ToContact(PortalStop stop) => new()
     {
         Name = stop.ContactName,
         Phone = stop.ContactPhone,
-        Email = stop.ContactEmail,
+        Email = string.IsNullOrWhiteSpace(stop.ContactEmail) ? null : stop.ContactEmail,
     };
 
     private static PortalDeliveryResult ToResult(EngineBookingResponse response, string serviceLevelCode) =>
@@ -343,14 +352,18 @@ public class PortalController : ControllerBase
     /// </summary>
     private ObjectResult Failure(EngineCallException ex, string accountRef)
     {
+        // Detail is the Engine naming the field it refused. Logged here and passed back,
+        // because the caller is the portal rather than the public, and a validation failure
+        // that does not say which field costs an hour of reconstructing the call by hand.
         _logger.LogWarning(
-            "Portal call failed for account {AccountRef}: {Status} {Code} {Message}",
-            accountRef, (int)ex.Status, ex.Code, ex.Message);
+            "Portal call failed for account {AccountRef}: {Status} {Code} {Message} {Detail}",
+            accountRef, (int)ex.Status, ex.Code, ex.Message, ex.Detail);
 
         return StatusCode((int)ex.Status, new
         {
             error = ex.Message,
             code = ex.Code,
+            detail = ex.Detail,
             requestId = ex.RequestId,
             transient = ex.IsTransient,
         });

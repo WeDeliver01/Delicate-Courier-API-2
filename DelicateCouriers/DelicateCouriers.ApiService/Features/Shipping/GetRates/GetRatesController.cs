@@ -380,9 +380,12 @@ public class GetRatesController : ControllerBase
                 inner = inner.InnerException;
             }
 
+            // The Engine names the field it refused, and that name is the whole of the
+            // useful content. Without it the log says "request failed validation" and
+            // finding out which field means reconstructing the call by hand.
             _logger.LogError(ex,
-                "RATES_FAIL [{ErrorId}] StoreID={StoreID} ExceptionChain={Detail}",
-                errorId, request.StoreId, detail);
+                "RATES_FAIL [{ErrorId}] StoreID={StoreID} ExceptionChain={Detail} Engine={EngineDetail}",
+                errorId, request.StoreId, detail, (ex as DeliveryException)?.Detail);
 
             // When the failure came from the delivery call itself, keep what it said. Debug
             // mode then shows an operator the Engine's own refusal rather than our summary
