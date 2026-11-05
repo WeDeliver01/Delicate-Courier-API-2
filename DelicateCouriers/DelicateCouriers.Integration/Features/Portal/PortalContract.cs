@@ -44,6 +44,28 @@ public sealed record PortalDeliveryRequest
     /// already agreed the price. It is not right when a customer was quoted at a checkout.
     /// </summary>
     [JsonPropertyName("maxTotalCents")] public long? MaxTotalCents { get; init; }
+
+    /// <summary>
+    /// The day and time the customer chose, which a slotted service level needs.
+    ///
+    /// Standard and Express are booked into a window. Leaving this out is what made every
+    /// Woo order fail: the Engine was sent no slot and refused, correctly, and the only thing
+    /// visible downstream was "request failed validation".
+    /// </summary>
+    [JsonPropertyName("slot")] public PortalSlot? Slot { get; init; }
+}
+
+/// <summary>
+/// When the customer wants it. `date` is `YYYY-MM-DD`; `time` is `HH:MM` on a 24-hour clock
+/// and is the START of the window they were promised.
+///
+/// No window key: the Engine owns its window names and resolves the time against them, so
+/// nothing on this side has to learn them or be changed when it adds one.
+/// </summary>
+public sealed record PortalSlot
+{
+    [JsonPropertyName("date")] public string Date { get; init; } = string.Empty;
+    [JsonPropertyName("time")] public string? Time { get; init; }
 }
 
 /// <summary>One end of the job: where, and who to ask for.</summary>

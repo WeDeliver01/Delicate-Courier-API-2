@@ -1,3 +1,4 @@
+using System.Globalization;
 using DelicateCouriers.ApiService.Features.Delivery.Shapes;
 
 namespace DelicateCouriers.ApiService.Features.Delivery;
@@ -39,6 +40,30 @@ public static class DeliveryRequestFactory
             MaxTotalCents = request.DeclaredValue is > 0
                 ? (long)Math.Round(request.DeclaredValue.Value * 100m, MidpointRounding.AwayFromZero)
                 : null,
+
+            // The day and window the customer chose. OrderToShipmentMapper has already dug
+            // these out of whichever checkout plugin the store runs and applied the store's
+            // own defaults, so by here they are decided -- they were simply never sent on,
+            // which is why every slotted booking was refused for having no slot.
+            Slot = ToSlot(request.DeliveryMinDate, request.DeliveryAfter),
+        };
+    }
+
+    /// <summary>
+    /// The slot to book, or null when no day is known.
+    ///
+    /// The start of the window, not the end: it is when the customer was told we would be
+    /// there, and it is what decides which of the Engine's windows the job lands in. Null is
+    /// a real answer -- on-demand needs no slot, and for a slotted service the Engine refuses
+    /// in terms that name the missing field, which beats inventing a date.
+    /// </summary>
+    private static DeliverySlot? ToSlot(DateTime? date, string? windowStart)
+    {
+        if (date is null) return null;
+        return new DeliverySlot
+        {
+            Date = date.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            Time = string.IsNullOrWhiteSpace(windowStart) ? null : windowStart.Trim(),
         };
     }
 

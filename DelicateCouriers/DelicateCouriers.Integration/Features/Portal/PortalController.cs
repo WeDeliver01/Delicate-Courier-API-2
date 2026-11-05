@@ -109,6 +109,12 @@ public class PortalController : ControllerBase
                         : request.IdempotencyKey,
                     CustomerReference = request.CustomerReference,
                     MaxTotalCents = request.MaxTotalCents,
+
+                    // Pass the chosen day and time straight through. The Engine turns the time
+                    // into one of its own windows, so this side never learns their names.
+                    Slot = request.Slot is null
+                        ? null
+                        : new EngineSlot { Date = request.Slot.Date, Time = request.Slot.Time },
                 },
                 cancellationToken);
 

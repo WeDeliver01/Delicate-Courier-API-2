@@ -30,6 +30,28 @@ public sealed record DeliveryRequest
     /// the price by hand; set when a customer was quoted one and is owed it.
     /// </summary>
     [JsonPropertyName("maxTotalCents")] public long? MaxTotalCents { get; init; }
+
+    /// <summary>
+    /// The day and time the customer chose, which a slotted service level needs.
+    ///
+    /// Standard and Express are booked into a window. Leaving this out is what made every
+    /// Woo order fail: the Engine was sent no slot and refused, correctly, and the only thing
+    /// visible downstream was "request failed validation".
+    /// </summary>
+    [JsonPropertyName("slot")] public DeliverySlot? Slot { get; init; }
+}
+
+/// <summary>
+/// When the customer wants it. `date` is `YYYY-MM-DD`; `time` is `HH:MM` on a 24-hour clock
+/// and is the START of the window they were promised.
+///
+/// No window key: the Engine owns its window names and resolves the time against them, so
+/// nothing on this side has to learn them or be changed when it adds one.
+/// </summary>
+public sealed record DeliverySlot
+{
+    [JsonPropertyName("date")] public string Date { get; init; } = string.Empty;
+    [JsonPropertyName("time")] public string? Time { get; init; }
 }
 
 public sealed record DeliveryStop
