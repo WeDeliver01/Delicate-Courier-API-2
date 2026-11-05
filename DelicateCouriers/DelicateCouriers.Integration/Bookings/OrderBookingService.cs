@@ -207,6 +207,11 @@ public sealed class OrderBookingService
         IdempotencyKey = reference,
         CustomerReference = reference,
 
+        // The date and time the shopper chose at checkout. These were being dropped here --
+        // the order carried them and the request was built without them -- so every Standard
+        // booking was refused by the Engine for having no slot.
+        Slot = DeliverySlotMapper.FromOrder(payload.DeliveryDate, payload.DeliveryTime),
+
         // What the shopper was charged for delivery, as a ceiling. Zero means the merchant
         // did not charge separately for it, in which case there is nothing to hold us to.
         MaxTotalCents = payload.ShippingTotal > 0
